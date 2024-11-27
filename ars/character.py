@@ -6,6 +6,12 @@ import yaml
 from .types import AbilityType, House
 
 
+class CharacterNotFoundError(Exception):
+    """Raised when a character cannot be found."""
+
+    pass
+
+
 @dataclass
 class Character:
     """Represents a character in Ars Magica."""
@@ -72,17 +78,22 @@ class Character:
         """Load character from file."""
         filepath = directory / f"{name.lower().replace(' ', '_')}.yml"
 
-        with filepath.open("r") as f:
-            data = yaml.safe_load(f)
+        try:
+            with filepath.open("r") as f:
+                data = yaml.safe_load(f)
 
-            # Convert string ability types back to enum
-            abilities_data = data.pop("abilities")
-            data["abilities"] = {AbilityType[type_name]: abilities for type_name, abilities in abilities_data.items()}
+                # Convert string ability types back to enum
+                abilities_data = data.pop("abilities")
+                data["abilities"] = {
+                    AbilityType[type_name]: abilities for type_name, abilities in abilities_data.items()
+                }
 
-            # Convert house string back to enum
-            data["house"] = House[data["house"].upper()]
+                # Convert house string back to enum
+                data["house"] = House[data["house"].upper()]
 
-            return cls(**data)
+                return cls(**data)
+        except FileNotFoundError as err:
+            raise CharacterNotFoundError(f"Character '{name}' not found") from err
 
     @staticmethod
     def list_characters(directory: Path = Path("ars/data/characters")) -> list[str]:

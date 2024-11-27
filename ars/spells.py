@@ -1,63 +1,7 @@
 from dataclasses import dataclass, field
-from enum import Enum
 
-from .dice import ArtRoller, DiceResult
-
-
-class Range(Enum):
-    """Spell ranges in Ars Magica."""
-
-    PERSONAL = "Personal"
-    TOUCH = "Touch"
-    SIGHT = "Sight"
-    VOICE = "Voice"
-    ARCANE_CONNECTION = "Arcane Connection"
-
-
-class Duration(Enum):
-    """Spell durations in Ars Magica."""
-
-    MOMENTARY = "Momentary"
-    CONCENTRATION = "Concentration"
-    DIAMETER = "Diameter"
-    SUN = "Sun"
-    MOON = "Moon"
-    YEAR = "Year"
-
-
-class Target(Enum):
-    """Spell target types in Ars Magica."""
-
-    INDIVIDUAL = "Individual"
-    GROUP = "Group"
-    ROOM = "Room"
-    STRUCTURE = "Structure"
-    BOUNDARY = "Boundary"
-
-
-class Form(Enum):
-    """Magical Forms in Ars Magica."""
-
-    ANIMAL = "Animal"
-    AQUAM = "Aquam"
-    AURAM = "Auram"
-    CORPUS = "Corpus"
-    HERBAM = "Herbam"
-    IGNEM = "Ignem"
-    IMAGINEM = "Imaginem"
-    MENTEM = "Mentem"
-    TERRAM = "Terram"
-    VIM = "Vim"
-
-
-class Technique(Enum):
-    """Magical Techniques in Ars Magica."""
-
-    CREO = "Creo"
-    INTELLEGO = "Intellego"
-    MUTO = "Muto"
-    PERDO = "Perdo"
-    REGO = "Rego"
+from ars.dice import ArtRoller, DiceResult
+from ars.types import Duration, Form, Range, Target, Technique
 
 
 @dataclass
