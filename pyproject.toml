@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "ars-magica"
-version = "0.1.0"
+version = "0.1.2"
 description = "A Python implementation of Ars Magica 5th Edition mechanics"
 authors = ["bjornaer <max.schulkin@gmail.com>"]
 license = "MIT"
