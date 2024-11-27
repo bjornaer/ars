@@ -1,0 +1,39 @@
+abilities:
+  ACADEMIC: {}
+  ARCANE: {}
+  GENERAL: {}
+  MARTIAL: {}
+age: 25
+communication: 0
+covenant: Integration Test Covenant
+dexterity: 0
+flaws: []
+forms:
+  Animal: 0
+  Aquam: 0
+  Auram: 0
+  Corpus: 0
+  Herbam: 0
+  Ignem: 0
+  Imaginem: 0
+  Mentem: 0
+  Terram: 0
+  Vim: 0
+house: Bonisagus
+intelligence: 0
+name: Integrus of Bonisagus
+perception: 0
+personality_traits: {}
+player: Test Player
+presence: 0
+quickness: 0
+saga: Test Saga
+stamina: 0
+strength: 0
+techniques:
+  Creo: 0
+  Intellego: 0
+  Muto: 0
+  Perdo: 0
+  Rego: 0
+virtues: []

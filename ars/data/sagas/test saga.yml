@@ -1,0 +1,14 @@
+activities:
+  Testus of Bonisagus:
+  - character: Testus of Bonisagus
+    completed: false
+    details:
+      quality: 10
+      source: Summa
+      subject: Magic Theory
+    results: {}
+    season: Spring
+    type: Study
+    year: 1220
+current_season: Spring
+year: 1220

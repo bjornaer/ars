@@ -160,7 +160,7 @@ class IntegratedCovenantManager:
                         name=resource_data["name"],
                         category=ResourceCategory.MUNDANE,
                         quality=resource_data["quality"],
-                        type=resource_data["type"],
+                        resource_type=resource_data["type"],
                     )
                     self.economy.add_resource(resource)
                     results["resources_gained"].append(resource.name)

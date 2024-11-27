@@ -35,8 +35,8 @@ class Resource:
 class MundaneResource(Resource):
     """Mundane resources like buildings, tools, etc."""
 
-    type: str
-    size: int
+    size: int = 1
+    resource_type: str = "tools"
     workers_required: int = 0
 
 
@@ -44,7 +44,7 @@ class MundaneResource(Resource):
 class MagicalResource(Resource):
     """Magical resources like enchanted items, aura features."""
 
-    magical_bonus: int
+    magical_bonus: int = 0
     form: Optional[Form] = None
     charges: Optional[int] = None
 
@@ -53,8 +53,8 @@ class MagicalResource(Resource):
 class Book(Resource):
     """Books and lab texts."""
 
-    level: int
-    subject: str
+    level: int = 1
+    subject: str = ""
     author: str = ""
     copies: int = 1
 
@@ -63,9 +63,9 @@ class Book(Resource):
 class Personnel(Resource):
     """Covenant staff and specialists."""
 
-    role: str
-    abilities: Dict[str, int]
-    salary: float
+    role: str = ""
+    abilities: Dict[str, int] = field(default_factory=dict)
+    salary: float = 0.0
     loyalty: int = 50  # Percentage
 
 
@@ -73,10 +73,10 @@ class Personnel(Resource):
 class BuildingProject:
     """A construction or improvement project."""
 
-    type: str
-    name: str
-    cost: float
-    seasons_required: int
+    building_type: str = "tower"
+    name: str = ""
+    cost: float = 0.0
+    seasons_required: int = 0
     seasons_completed: int = 0
     workers_assigned: int = 0
     resources_committed: Dict[str, int] = field(default_factory=dict)
@@ -221,7 +221,7 @@ class CovenantEconomy:
             name=project.name,
             category=ResourceCategory.INFRASTRUCTURE,
             quality=10,  # Base quality
-            type=project.type,
+            resource_type=project.building_type,
             size=3,  # Default size
             workers_required=project.workers_assigned,
         )
@@ -243,7 +243,7 @@ class CovenantEconomy:
             "projects": {
                 name: {
                     "name": project.name,
-                    "type": project.type,
+                    "type": project.building_type,
                     "cost": project.cost,
                     "seasons_required": project.seasons_required,
                     "seasons_completed": project.seasons_completed,
@@ -278,7 +278,7 @@ class CovenantEconomy:
         for name, proj_data in data["projects"].items():
             project = BuildingProject(
                 name=proj_data["name"],
-                type=proj_data["type"],
+                building_type=proj_data["type"],
                 cost=proj_data["cost"],
                 seasons_required=proj_data["seasons_required"],
                 seasons_completed=proj_data["seasons_completed"],
@@ -308,7 +308,11 @@ class CovenantEconomy:
 
         if isinstance(resource, MundaneResource):
             data.update(
-                {"resource_type": resource.type, "size": resource.size, "workers_required": resource.workers_required}
+                {
+                    "resource_type": resource.resource_type,
+                    "size": resource.size,
+                    "workers_required": resource.workers_required,
+                }
             )
         elif isinstance(resource, MagicalResource):
             data.update(
@@ -353,7 +357,10 @@ class CovenantEconomy:
 
         if data["type"] == "MundaneResource":
             return MundaneResource(
-                **base_args, type=data["resource_type"], size=data["size"], workers_required=data["workers_required"]
+                **base_args,
+                resource_type=data["resource_type"],
+                size=data["size"],
+                workers_required=data["workers_required"],
             )
         elif data["type"] == "MagicalResource":
             return MagicalResource(

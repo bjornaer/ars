@@ -24,7 +24,7 @@ def test_mundane_resource():
         category=ResourceCategory.INFRASTRUCTURE,
         quality=5,
         maintenance_cost=2.0,
-        type="building",
+        resource_type="building",
         size=2,
         workers_required=3,
     )
@@ -111,7 +111,7 @@ def test_expense_management(test_economy):
 
 def test_project_management(test_economy):
     """Test building project management."""
-    project = BuildingProject(name="New Tower", type="tower", cost=100.0, seasons_required=4)
+    project = BuildingProject(name="New Tower", building_type="tower", cost=100.0, seasons_required=4)
 
     # Test starting project with insufficient funds
     assert not test_economy.start_project(project)
@@ -156,7 +156,9 @@ def test_resource_deterioration(test_economy, test_mundane_resource):
 def test_project_progress(test_economy):
     """Test project progress tracking."""
     test_economy.treasury = 200.0
-    project = BuildingProject(name="New Tower", type="tower", cost=100.0, seasons_required=2, workers_assigned=3)
+    project = BuildingProject(
+        name="New Tower", building_type="tower", cost=100.0, seasons_required=2, workers_assigned=3
+    )
 
     test_economy.start_project(project)
 
@@ -186,11 +188,13 @@ def test_project_progress(test_economy):
 def test_resource_requirements(test_economy):
     """Test resource requirement checking."""
     project = BuildingProject(
-        name="New Tower", type="tower", cost=100.0, seasons_required=2, resources_committed={"Stone": 10}
+        name="New Tower", building_type="tower", cost=100.0, seasons_required=2, resources_committed={"Stone": 10}
     )
 
     # Add stone resource
-    stone = MundaneResource(name="Stone", category=ResourceCategory.MUNDANE, quality=5, type="material", size=1)
+    stone = MundaneResource(
+        name="Stone", category=ResourceCategory.MUNDANE, quality=5, resource_type="material", size=1
+    )
     test_economy.add_resource(stone)
 
     test_economy.treasury = 200.0
@@ -205,7 +209,7 @@ def test_save_load_state(test_economy, tmp_path):
     test_economy.add_expense("Maintenance", 20.0)
     test_economy.add_resource(
         MundaneResource(
-            name="Test Building", category=ResourceCategory.INFRASTRUCTURE, quality=5, type="building", size=2
+            name="Test Building", category=ResourceCategory.INFRASTRUCTURE, quality=5, resource_type="building", size=2
         )
     )
 

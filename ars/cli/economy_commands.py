@@ -64,7 +64,7 @@ def add_resource(covenant_name: str, name: str, res_type: str, category: str, qu
                 category=ResourceCategory(category),
                 quality=quality,
                 maintenance_cost=maintenance,
-                type=details.get("type", "generic"),
+                resource_type=details.get("type", "generic"),
                 size=details.get("size", 1),
                 workers_required=details.get("workers", 0),
             )
@@ -123,7 +123,9 @@ def start_project(covenant_name: str, name: str, type: str, cost: float, seasons
     try:
         economy = CovenantEconomy.load_state(Path(f"ars/data/economy_{covenant_name}.yml"))
 
-        project = BuildingProject(name=name, type=type, cost=cost, seasons_required=seasons, workers_assigned=workers)
+        project = BuildingProject(
+            name=name, building_type=type, cost=cost, seasons_required=seasons, workers_assigned=workers
+        )
 
         # Add required resources
         if Confirm.ask("Add required resources?"):
@@ -278,7 +280,7 @@ def status(covenant_name: str):
             for project in active_projects.values():
                 project_table.add_row(
                     project.name,
-                    project.type,
+                    project.building_type,
                     f"{project.seasons_completed}/{project.seasons_required}",
                     str(project.workers_assigned),
                 )
