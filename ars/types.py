@@ -81,3 +81,14 @@ class Technique(Enum):
     MUTO = "Muto"
     PERDO = "Perdo"
     REGO = "Rego"
+
+class Characteristic(Enum):
+    """Characteristics in Ars Magica."""
+
+    STRENGTH = "Strength"
+    DEXTERITY = "Dexterity"
+    ENDURANCE = "Endurance"
+    INTELLIGENCE = "Intelligence"
+    WISDOM = "Wisdom"
+    CHARISMA = "Charisma"
+    

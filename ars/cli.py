@@ -2,27 +2,27 @@ import click
 from rich.console import Console
 from rich.prompt import Prompt
 
-from ars import laboratory
-from ars.cli.adventure_commands import adventure
-from ars.cli.character_wizard import CharacterWizard
-from ars.cli.combat_commands import combat
-from ars.cli.covenant_commands import covenant
-from ars.cli.economy_commands import economy
-from ars.cli.magic_item_commands import enchant
-from ars.cli.research_commands import research
-from ars.cli.season_commands import season
-from ars.cli.spell_commands import spell
-from ars.cli.vis_aura_commands import vis
+from ars.commands.lab_commands import lab
+from ars.commands.adventure_commands import adventure
+from ars.commands.character_wizard import CharacterWizard
+from ars.commands.combat_commands import combat
+from ars.commands.covenant_commands import covenant
+from ars.commands.economy_commands import economy
+from ars.commands.magic_item_commands import enchant
+from ars.commands.research_commands import research
+from ars.commands.season_commands import season
+from ars.commands.spell_commands import spell
+from ars.commands.vis_aura_commands import vis
 
-from .character import Character
-from .dice import DiceRoller
-from .display import CharacterDisplay
+from ars.character import Character
+from ars.dice import DiceRoller
+from ars.display import CharacterDisplay
 
 console = Console()
 
 
 @click.group()
-@click.version_option(version="0.1.0")
+@click.version_option(version="0.1.3")
 def main() -> None:
     """Ars Magica character management and dice rolling system."""
     pass
@@ -189,7 +189,7 @@ def simple(stress: bool) -> None:
 # Register the covenant commands with the main CLI group
 main.add_command(covenant)
 # Register the laboratory commands with the main CLI group
-main.add_command(laboratory)
+main.add_command(lab)
 # Register the research commands with the main CLI group
 main.add_command(research)
 # Register the season commands with the main CLI group

@@ -5,9 +5,9 @@ from rich.panel import Panel
 from rich.prompt import Confirm, Prompt
 from rich.table import Table
 
-from ..character import Character
-from ..types import Characteristic, Form, House, Technique
-from ..virtues_flaws import VirtueFlaw
+from ars.character import Character
+from ars.types import Characteristic, Form, House, Technique
+from ars.virtues_flaws import VirtueFlaw
 
 console = Console()
 
