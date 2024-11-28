@@ -61,28 +61,26 @@ class Target(Enum):
 
 
 class Form(Enum):
-    """Magical Forms in Ars Magica."""
-
-    ANIMAL = "Animal"
-    AQUAM = "Aquam"
-    AURAM = "Auram"
-    CORPUS = "Corpus"
-    HERBAM = "Herbam"
-    IGNEM = "Ignem"
-    IMAGINEM = "Imaginem"
-    MENTEM = "Mentem"
-    TERRAM = "Terram"
-    VIM = "Vim"
+    """Hermetic Forms of magic."""
+    ANIMAL = auto()
+    AQUAM = auto()
+    AURAM = auto()
+    CORPUS = auto()
+    HERBAM = auto()
+    IGNEM = auto()
+    IMAGINEM = auto()
+    MENTEM = auto()
+    TERRAM = auto()
+    VIM = auto()
 
 
 class Technique(Enum):
-    """Magical Techniques in Ars Magica."""
-
-    CREO = "Creo"
-    INTELLEGO = "Intellego"
-    MUTO = "Muto"
-    PERDO = "Perdo"
-    REGO = "Rego"
+    """Hermetic Techniques of magic."""
+    CREO = auto()
+    INTELLEGO = auto()
+    MUTO = auto()
+    PERDO = auto()
+    REGO = auto()
 
 
 class Characteristic(Enum):
@@ -171,20 +169,9 @@ class EventType(Enum):
     SEASON_CHANGE = auto()
     CHARACTER_DEATH = auto()
     TWILIGHT = auto()
-
-class EventType(Enum):
-    """Types of game events."""
-
-    AGING = auto()
-    WARPING = auto()
-    SEASONAL_ACTIVITY = auto()
-    VIS_COLLECTION = auto()
-    VIS_USE = auto()
-    VIS_TRANSFER = auto()
-    RESEARCH = auto()
-    SPELL_CREATION = auto()
-    ITEM_CREATION = auto()
-    LABORATORY_WORK = auto()
-    SEASON_CHANGE = auto()
-    CHARACTER_DEATH = auto()
-    TWILIGHT = auto()
+    SPELLCASTING = auto()
+    COMBAT = auto()
+    CERTAMEN = auto()
+    WOUND = auto()
+    FATIGUE = auto()
+    EXPERIENCE_GAIN = auto()

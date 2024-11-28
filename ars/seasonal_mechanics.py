@@ -3,12 +3,11 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import Dict, List, Optional
 
-from .character import Character
-from .covenant import Covenant
-from .dice import DiceRoller
-from .events import EventType, GameEvent
-from ars.core.types import Season
-from .core.types import Characteristic
+from ars.character import Character
+from ars.covenant import Covenant
+from ars.dice import DiceRoller
+from ars.events import Event
+from ars.core.types import EventType, Season, Characteristic
 
 
 class AgingCrisis(Enum):
@@ -174,7 +173,7 @@ class SeasonalMechanicsManager:
 
     def _record_aging_event(self, character: Character, result: AgingResult, year: int, season: str) -> None:
         """Record aging event."""
-        event = GameEvent(
+        event = Event(
             type=EventType.AGING,
             year=year,
             season=season,

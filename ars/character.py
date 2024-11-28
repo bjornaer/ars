@@ -4,16 +4,20 @@ from typing import Any, Dict, List, Optional, TYPE_CHECKING
 
 import yaml
 
-from ars.events import EventRecorder
+from ars.events import Event, EventRecorder, EventManager
 from ars.experience import ExperienceManager
 from ars.serialization import Serializable
-from ars.core.types import AbilityType, Characteristic, House, ItemType, Season, EventType
+from ars.core.types import (
+    AbilityType, Characteristic, House, ItemType, Season, 
+    EventType, Form, Technique  # Add Form and Technique imports
+)
 from ars.virtues_flaws import VirtueFlaw
 from ars.core.base_types import BaseCharacter
 
 
 if TYPE_CHECKING:
     from ars.magic_items import MagicItem
+    from ars.spells import Spell
 
 
 class CharacterNotFoundError(Exception):
@@ -51,8 +55,8 @@ class Character(Serializable, EventRecorder, BaseCharacter):
     flaws: List[VirtueFlaw] = field(default_factory=list)
 
     # Magic abilities
-    techniques: Dict[str, int] = field(default_factory=dict)
-    forms: Dict[str, int] = field(default_factory=dict)
+    techniques: Dict[Technique, int] = field(default_factory=dict)
+    forms: Dict[Form, int] = field(default_factory=dict)
 
     # Skills and abilities
     abilities: Dict[AbilityType, Dict[str, int]] = field(
@@ -66,11 +70,26 @@ class Character(Serializable, EventRecorder, BaseCharacter):
     longevity_ritual_bonus: int = 0
     magic_items: List["MagicItem"] = field(default_factory=list)
 
+    # Spells
+    spells: Dict[str, 'Spell'] = field(default_factory=dict)
+
     def __post_init__(self):
-        super().__init__()
+        """Initialize after dataclass creation."""
+        EventRecorder.__init__(self)  # Initialize EventRecorder
+        super().__post_init__()  # Call parent's post_init if it exists
+        self.event_manager = None
         if not self.apparent_age:
             self.apparent_age = self.age
         self.experience = ExperienceManager()
+        
+        # Initialize arts
+        for technique in Technique:
+            if technique not in self.techniques:
+                self.techniques[technique] = 0
+                
+        for form in Form:
+            if form not in self.forms:
+                self.forms[form] = 0
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "Character":
@@ -84,6 +103,12 @@ class Character(Serializable, EventRecorder, BaseCharacter):
         # Convert abilities
         abilities_data = data.pop("abilities")
         data["abilities"] = {AbilityType[type_name]: abilities for type_name, abilities in abilities_data.items()}
+
+        # Convert techniques and forms to enums
+        tech_data = data.pop("techniques", {})
+        form_data = data.pop("forms", {})
+        data["techniques"] = {Technique[name]: value for name, value in tech_data.items()}
+        data["forms"] = {Form[name]: value for name, value in form_data.items()}
 
         # Convert virtues and flaws
         data["virtues"] = [VirtueFlaw.from_dict(v) for v in data.get("virtues", [])]
@@ -125,6 +150,10 @@ class Character(Serializable, EventRecorder, BaseCharacter):
         data = self.__dict__.copy()
         data["abilities"] = {type_name.name: abilities for type_name, abilities in self.abilities.items()}
         data["house"] = self.house.value
+        
+        # Convert techniques and forms to strings
+        data["techniques"] = {tech.name: value for tech, value in self.techniques.items()}
+        data["forms"] = {form.name: value for form, value in self.forms.items()}
 
         with filepath.open("w") as f:
             yaml.safe_dump(data, f)
@@ -183,26 +212,21 @@ class Character(Serializable, EventRecorder, BaseCharacter):
 
         return magic_theory >= requirements[item_type]
 
-    def add_experience(self, ability: str, points: int, year: int = None, season: Season = None) -> None:
+    def add_experience(self, ability: str, points: int) -> None:
         """Add experience points to an ability."""
         current_value = self.abilities.get(ability, 0)
         self.abilities[ability] = current_value + points
 
-        if self.event_manager:
-            self.record_event(
-                type=EventType.SEASONAL_ACTIVITY,
-                description=f"Gained {points} experience in {ability}",
-                details={
-                    "character": self.name,
-                    "ability": ability,
-                    "points_gained": points,
-                    "new_value": self.abilities[ability],
-                },
-                year=year,
-                season=season,
-            )
+        self.record_event(
+            event_type=EventType.EXPERIENCE_GAIN,
+            details={
+                "ability": ability,
+                "points_gained": points,
+                "new_value": self.abilities[ability]
+            }
+        )
 
-    def add_warping_points(self, points: int, source: str, year: int = None, season: Season = None) -> None:
+    def add_warping_points(self, points: int, source: str) -> None:
         """Add warping points and check for score increase."""
         self.warping_points += points
         old_score = self.warping_score
@@ -211,23 +235,18 @@ class Character(Serializable, EventRecorder, BaseCharacter):
         self.warping_score = self.warping_points // 5
         gained_score = self.warping_score - old_score
 
-        if self.event_manager:
-            self.record_event(
-                type=EventType.WARPING,
-                description=f"Gained {points} warping points from {source}",
-                details={
-                    "character": self.name,
-                    "points_gained": points,
-                    "source": source,
-                    "total_points": self.warping_points,
-                    "score_increased": gained_score > 0,
-                    "new_score": self.warping_score,
-                },
-                year=year,
-                season=season,
-            )
+        self.record_event(
+            event_type=EventType.WARPING,
+            details={
+                "points_gained": points,
+                "source": source,
+                "total_points": self.warping_points,
+                "score_increased": gained_score > 0,
+                "new_score": self.warping_score
+            }
+        )
 
-    def add_decrepitude_points(self, points: int, source: str, year: int = None, season: Season = None) -> None:
+    def add_decrepitude_points(self, points: int, source: str) -> None:
         """Add decrepitude points and check for score increase."""
         self.decrepitude_points += points
         old_score = self.decrepitude_score
@@ -236,18 +255,42 @@ class Character(Serializable, EventRecorder, BaseCharacter):
         self.decrepitude_score = self.decrepitude_points // 5
         gained_score = self.decrepitude_score - old_score
 
-        if self.event_manager:
-            self.record_event(
-                type=EventType.AGING,
-                description=f"Gained {points} decrepitude points from {source}",
-                details={
-                    "character": self.name,
-                    "points_gained": points,
-                    "source": source,
-                    "total_points": self.decrepitude_points,
-                    "score_increased": gained_score > 0,
-                    "new_score": self.decrepitude_score,
-                },
-                year=year,
-                season=season,
-            )
+        self.record_event(
+            event_type=EventType.AGING,
+            details={
+                "points_gained": points,
+                "source": source,
+                "total_points": self.decrepitude_points,
+                "score_increased": gained_score > 0,
+                "new_score": self.decrepitude_score
+            }
+        )
+
+    def add_spell(self, spell: 'Spell') -> None:
+        """Add a spell to the character's repertoire."""
+        self.spells[spell.name] = spell
+        
+        self.record_event(
+            event_type=EventType.SPELLCASTING,
+            details={
+                "action": "learn_spell",
+                "spell_name": spell.name,
+                "spell_level": spell.level
+            }
+        )
+
+    def cast_spell(self, spell: 'Spell', **kwargs) -> 'SpellCastingResult':
+        """Cast a spell using the current game context for temporal information."""
+        # Calculate casting result
+        result = self._calculate_spell_result(spell, **kwargs)
+        
+        self.record_event(
+            event_type=EventType.SPELLCASTING,
+            details={
+                "spell_name": spell.name,
+                "casting_total": result.casting_total,
+                "success": result.success
+            }
+        )
+        
+        return result

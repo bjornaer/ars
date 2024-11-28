@@ -2,7 +2,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Dict, List, Optional, Tuple
 
-from ars.events import EventType, GameEvent
+from ars.events import EventType, Event
 from ars.core.types import Season
 from ars.core.types import Form
 from ars.vis_aura import VisManager
@@ -54,7 +54,7 @@ class EnhancedVisManager(VisManager):
 
             # Create event
             if self.event_manager:
-                event = GameEvent(
+                event = Event(
                     type=EventType.VIS_COLLECTION,
                     season=Season(season),
                     year=year,
@@ -81,7 +81,7 @@ class EnhancedVisManager(VisManager):
             self.stocks[form] -= amount
 
             if self.event_manager:
-                event = GameEvent(
+                event = Event(
                     type=EventType.VIS_RESERVATION,
                     description=f"Reserved {amount} pawns of {form.value} vis for {purpose}",
                     details={"form": form.value, "amount": amount, "purpose": purpose, "character": character},
@@ -106,7 +106,7 @@ class EnhancedVisManager(VisManager):
                     del self.reserved_vis[purpose]
 
             if self.event_manager:
-                event = GameEvent(
+                event = Event(
                     type=EventType.VIS_USAGE,
                     description=f"Used {amount} pawns of {form.value} vis for {purpose}",
                     details={"form": form.value, "amount": amount, "purpose": purpose, "character": character},
@@ -130,7 +130,7 @@ class EnhancedVisManager(VisManager):
             self.transactions.append(transaction)
 
             if self.event_manager:
-                event = GameEvent(
+                event = Event(
                     type=EventType.VIS_TRANSFER,
                     description=vis_transfer_message(amount, form, source_name, destination_name),
                     details={

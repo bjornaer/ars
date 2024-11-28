@@ -5,14 +5,14 @@ from typing import Dict, List, Optional, TYPE_CHECKING
 
 import yaml
 
-from ars.events import SeasonalEventManager
+from ars.events import EventManager
 from ars.spell_research import ResearchProject
 from ars.core.types import ActivityType, Season, SeasonalActivity
 
 from ars.character import Character
 from ars.covenant import Covenant
 from ars.laboratory import Laboratory
-# if TYPE_CHECKING:
+
 
 @dataclass
 class GameYear:
@@ -39,7 +39,7 @@ class SeasonManager:
         self.current_year = GameYear(year=1220)
         self.characters: Dict[str, Character] = {}
         self.covenant: Optional[Covenant] = None
-        self.event_manager = SeasonalEventManager(self)
+        self.event_manager = EventManager()
 
     def load_saga(self) -> None:
         """Load saga data."""

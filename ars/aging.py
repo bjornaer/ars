@@ -4,7 +4,7 @@ from enum import Enum, auto
 from typing import Dict, List, Optional
 
 from ars.character import Character
-from ars.events import EventType, GameEvent
+from ars.events import EventType, Event
 from ars.core.types import AbilityType, Characteristic
 
 
@@ -149,7 +149,7 @@ class AgingManager:
     def _record_aging_event(self, character: Character, result: AgingResult, year: int, season: str) -> None:
         """Record aging event."""
         if self.event_manager:
-            event = GameEvent(
+            event = Event(
                 type=EventType.AGING,
                 year=year,
                 season=season,
@@ -252,7 +252,7 @@ class WarpingManager:
     def _record_warping_event(self, character: Character, result: WarpingResult, year: int, season: str) -> None:
         """Record warping event."""
         if self.event_manager:
-            event = GameEvent(
+            event = Event(
                 type=EventType.WARPING,
                 year=year,
                 season=season,
