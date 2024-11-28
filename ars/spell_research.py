@@ -1,14 +1,16 @@
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
-from typing import List, Optional
+from typing import Dict, List, Optional
 
 import yaml
 
 from .character import Character
+from .events import EventRecorder, EventType
 from .laboratory import Laboratory
+from ars.core.types import Season
 from .spells import Spell
-from .types import Form, Technique
+from .core.types import Form, Technique
 
 
 class ResearchType(Enum):
@@ -159,3 +161,115 @@ class ResearchProject:
             data["modifiers"] = modifiers
 
             return cls(**data)
+
+    def apply_vis_effects(self, effects: Dict[str, int]) -> None:
+        """Apply vis effects to research project."""
+        for effect, value in effects.items():
+            if effect.endswith("_bonus"):
+                form = effect.replace("_bonus", "")
+                if hasattr(self, "research_bonuses"):
+                    self.research_bonuses[form] = value
+
+
+@dataclass
+class ResearchResult:
+    """Result of a research activity."""
+
+    points_gained: int = 0
+    breakthrough: bool = False
+    warping_points: int = 0
+    insight_gained: Optional[str] = None
+    complications: List[str] = field(default_factory=list)
+
+
+class SpellResearchManager(EventRecorder):
+    """Manages magical research activities."""
+
+    def __init__(self, event_manager=None):
+        super().__init__(event_manager)
+
+    def conduct_research(
+        self, project: "ResearchProject", character: "Character", laboratory: "Laboratory", year: int, season: Season
+    ) -> ResearchResult:
+        """Conduct magical research."""
+        # Calculate base research points
+        art_score = min(character.techniques[project.technique], character.forms[project.form])
+        lab_total = laboratory.calculate_lab_total(project.technique, project.form)
+
+        # Calculate research points
+        points = (art_score + lab_total) // 10
+
+        # Check for breakthroughs
+        breakthrough = self._check_breakthrough(points, project)
+
+        # Calculate warping
+        warping = self._calculate_warping(laboratory.magical_aura)
+
+        result = ResearchResult(points_gained=points, breakthrough=breakthrough, warping_points=warping)
+
+        # Record the research event
+        self.record_event(
+            type=EventType.RESEARCH,
+            description=f"Research conducted by {character.name} on {project.name}",
+            details={
+                "character": character.name,
+                "project_name": project.name,
+                "research_type": project.research_type.value,
+                "points_gained": points,
+                "breakthrough": breakthrough,
+                "warping_points": warping,
+                "laboratory_conditions": {"aura": laboratory.magical_aura, "lab_total": lab_total},
+            },
+            year=year,
+            season=season,
+        )
+
+        return result
+
+    def _check_breakthrough(self, points: int, project: "ResearchProject") -> bool:
+        """Check if a breakthrough occurs."""
+        if points > project.target_level // 2:
+            return True
+        return False
+
+    def _calculate_warping(self, aura: int) -> int:
+        """Calculate warping points from research."""
+        return max(0, (aura - 5) // 2)  # Warping from high aura exposure
+
+
+@dataclass
+class MasteryEffect:
+    """Represents a spell mastery special ability."""
+
+    name: str
+    description: str
+    level_required: int
+    effect: Dict[str, any]
+
+
+class SpellMasteryEffects:
+    """Registry of available mastery effects."""
+
+    EFFECTS = {
+        "fast_cast": MasteryEffect(
+            name="Fast Cast",
+            description="Cast spell as a fast action",
+            level_required=1,
+            effect={"initiative_bonus": 3},
+        ),
+        "multiple_casting": MasteryEffect(
+            name="Multiple Casting",
+            description="Cast spell multiple times per round",
+            level_required=2,
+            effect={"max_casts": 2},
+        ),
+        "quiet_casting": MasteryEffect(
+            name="Quiet Casting", description="Cast without voice", level_required=2, effect={"silent": True}
+        ),
+        "penetration": MasteryEffect(
+            name="Penetration",
+            description="Improved magic resistance penetration",
+            level_required=1,
+            effect={"penetration_bonus": 3},
+        ),
+    }

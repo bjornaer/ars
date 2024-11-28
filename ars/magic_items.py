@@ -1,35 +1,16 @@
 from dataclasses import dataclass, field
-from enum import Enum
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple, TYPE_CHECKING
 
 import yaml
 
-from .character import Character
-from .laboratory import Laboratory
-from .types import Form, Technique
-from .vis_aura import VisManager
-
-
-class ItemType(Enum):
-    """Types of magic items."""
-
-    CHARGED = "Charged Item"
-    INVESTED = "Invested Device"
-    LESSER = "Lesser Enchanted Item"
-    GREATER = "Greater Enchanted Item"
-    TALISMAN = "Talisman"
-
-
-class InstallationType(Enum):
-    """Types of effect installations."""
-
-    EFFECT = "Effect"
-    TRIGGER = "Trigger"
-    ENVIRONMENTAL = "Environmental Trigger"
-    LINKED = "Linked Trigger"
-    RESTRICTED = "Use Restriction"
-
+from ars.events import EventRecorder
+from ars.laboratory import Laboratory
+from ars.core.types import Form, InstallationType, ItemType, Technique, EventType, Season
+from ars.vis_aura import VisManager
+from ars.core.base_types import BaseMagicItem
+from ars.character import Character
+# if TYPE_CHECKING:
 
 @dataclass
 class ItemEffect:
@@ -38,7 +19,7 @@ class ItemEffect:
     name: str
     technique: Technique
     form: Form
-    level: int
+    level: int = 0
     penetration: int = 0
     installation_type: InstallationType = InstallationType.EFFECT
     uses_per_day: Optional[int] = None
@@ -50,14 +31,14 @@ class ItemEffect:
 
 
 @dataclass
-class MagicItem:
+class MagicItem(BaseMagicItem):
     """A magical item with enchantments."""
 
-    name: str
-    type: ItemType
-    creator: str
-    base_material: str
-    size: int
+    name: str = ""
+    type: ItemType = ItemType.CHARGED
+    creator: str = ""
+    base_material: str = ""
+    size: int = 0
     shape_bonus: int = 0
     material_bonus: int = 0
     effects: List[ItemEffect] = field(default_factory=list)
@@ -84,24 +65,43 @@ class MagicItem:
         return vis_needed <= self.calculate_remaining_capacity()
 
 
-class ItemCreationManager:
+class ItemCreationManager(EventRecorder):
     """Manages magic item creation process."""
 
-    def __init__(self):
+    def __init__(self, event_manager=None):
+        super().__init__(event_manager)
         self.material_bonuses: Dict[str, int] = {}
         self.shape_bonuses: Dict[str, int] = {}
         self.current_projects: Dict[str, Tuple[MagicItem, ItemEffect]] = {}
 
-    def start_project(self, character: Character, laboratory: Laboratory, item: MagicItem, effect: ItemEffect) -> bool:
+    def start_project(
+        self,
+        character: Character,
+        laboratory: Laboratory,
+        item: MagicItem,
+        effect: ItemEffect,
+        year: int,
+        season: Season,
+    ) -> bool:
         """Start a new item creation project."""
         if not item.can_add_effect(effect):
+            self.record_event(
+                type=EventType.ITEM_CREATION,
+                description=f"Failed to start item creation: {item.name} cannot accept effect {effect.name}",
+                details={
+                    "character": character.name,
+                    "item_name": item.name,
+                    "effect_name": effect.name,
+                    "reason": "Capacity exceeded or incompatible effect",
+                },
+                year=year,
+                season=season,
+            )
             return False
 
         # Calculate lab total for effect
         art_score = character.techniques.get(effect.technique.value, 0) + character.forms.get(effect.form.value, 0)
-
         lab_total = art_score + laboratory.magical_aura + item.calculate_total_bonus()
-
         effect.lab_total = lab_total
 
         # Calculate seasons required
@@ -112,6 +112,26 @@ class ItemCreationManager:
             effect.vis_required = self._calculate_vis_requirements(effect, item.type)
 
         self.current_projects[character.name] = (item, effect)
+
+        self.record_event(
+            type=EventType.ITEM_CREATION,
+            description=f"Started creation of {effect.name} in {item.name}",
+            details={
+                "character": character.name,
+                "item_name": item.name,
+                "effect_name": effect.name,
+                "lab_total": lab_total,
+                "seasons_required": effect.seasons_required,
+                "vis_required": {k.value: v for k, v in effect.vis_required.items()},
+                "laboratory_conditions": {
+                    "aura": laboratory.magical_aura,
+                    "art_score": art_score,
+                    "total_bonus": item.calculate_total_bonus(),
+                },
+            },
+            year=year,
+            season=season,
+        )
         return True
 
     def _calculate_vis_requirements(self, effect: ItemEffect, item_type: ItemType) -> Dict[Form, int]:
@@ -135,7 +155,12 @@ class ItemCreationManager:
         return vis_requirements
 
     def continue_project(
-        self, character: Character, laboratory: Laboratory, vis_manager: Optional[VisManager] = None
+        self,
+        character: Character,
+        laboratory: Laboratory,
+        vis_manager: Optional[VisManager] = None,
+        year: int = None,
+        season: Season = None,
     ) -> Dict[str, any]:
         """Continue work on current project."""
         if character.name not in self.current_projects:
@@ -147,6 +172,18 @@ class ItemCreationManager:
         if effect.seasons_required > 0 and vis_manager:
             for form, amount in effect.vis_required.items():
                 if not vis_manager.use_vis(form, amount):
+                    self.record_event(
+                        type=EventType.ITEM_CREATION,
+                        description="Failed to continue project: insufficient vis",
+                        details={
+                            "character": character.name,
+                            "item_name": item.name,
+                            "effect_name": effect.name,
+                            "missing_vis": {form.value: amount},
+                        },
+                        year=year,
+                        season=season,
+                    )
                     return {"error": f"Insufficient {form.value} vis"}
 
         # Progress project
@@ -158,7 +195,34 @@ class ItemCreationManager:
             item.current_capacity += sum(effect.vis_required.values())
             del self.current_projects[character.name]
 
+            self.record_event(
+                type=EventType.ITEM_CREATION,
+                description=f"Completed installation of {effect.name} in {item.name}",
+                details={
+                    "character": character.name,
+                    "item_name": item.name,
+                    "effect_name": effect.name,
+                    "final_capacity": item.current_capacity,
+                    "remaining_capacity": item.calculate_remaining_capacity(),
+                },
+                year=year,
+                season=season,
+            )
+
             return {"status": "completed", "item": item, "effect": effect}
+
+        self.record_event(
+            type=EventType.ITEM_CREATION,
+            description=f"Continued work on {effect.name} in {item.name}",
+            details={
+                "character": character.name,
+                "item_name": item.name,
+                "effect_name": effect.name,
+                "seasons_remaining": effect.seasons_required,
+            },
+            year=year,
+            season=season,
+        )
 
         return {"status": "in_progress", "seasons_remaining": effect.seasons_required}
 

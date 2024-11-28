@@ -5,7 +5,7 @@ from ars.character import Character
 from ars.covenant import Covenant
 from ars.laboratory import Laboratory
 from ars.spell_research import ResearchProject
-from ars.types import Form
+from ars.core.types import Form
 from ars.vis_aura import AuraManager, AuraProperties, AuraType, VisManager
 
 
@@ -130,38 +130,3 @@ class IntegratedVisAuraManager:
             pass  # New saga
 
         return manager
-
-
-# Update existing classes to work with the integrated manager
-
-
-class Laboratory:
-    def calculate_extraction_bonus(self) -> int:
-        """Calculate laboratory's bonus to vis extraction."""
-        bonus = 0
-        if hasattr(self, "activity_modifiers"):
-            bonus += self.activity_modifiers.get("vis_extraction", 0)
-        if hasattr(self, "magical_aura"):
-            bonus += self.magical_aura // 2
-        return bonus
-
-
-class Covenant:
-    def apply_aura_effects(self, effects: Dict[str, int]) -> None:
-        """Apply aura effects to covenant."""
-        for activity, modifier in effects.items():
-            if activity == "magical_activities":
-                self.aura = max(0, self.aura + modifier)
-            elif activity == "vis_extraction":
-                for source in self.vis_sources:
-                    source.amount = max(1, source.amount + modifier)
-
-
-class ResearchProject:
-    def apply_vis_effects(self, effects: Dict[str, int]) -> None:
-        """Apply vis effects to research project."""
-        for effect, value in effects.items():
-            if effect.endswith("_bonus"):
-                form = effect.replace("_bonus", "")
-                if hasattr(self, "research_bonuses"):
-                    self.research_bonuses[form] = value

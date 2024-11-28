@@ -4,7 +4,7 @@ from ars.character import Character
 from ars.covenant import Covenant
 from ars.laboratory import Laboratory
 from ars.spell_research import ResearchProject, ResearchType
-from ars.types import Form, House, Technique
+from ars.core.types import Form, House, Technique
 from ars.vis_aura_integration import IntegratedVisAuraManager
 
 
@@ -64,7 +64,7 @@ def test_research_integration(integrated_setup):
     covenant, laboratory, _, project, manager = integrated_setup
 
     # Add some vis to stocks
-    manager.vis_manager.stocks[Form.CREO] = 5
+    manager.vis_manager.stocks[Technique.CREO] = 5
     manager.vis_manager.stocks[Form.IGNEM] = 3
 
     effects = manager.integrate_with_research(project, laboratory, covenant, "Summer")
@@ -74,7 +74,7 @@ def test_research_integration(integrated_setup):
 
     # Verify vis usage
     if "Creo_bonus" in effects:
-        assert manager.vis_manager.stocks[Form.CREO] < 5
+        assert manager.vis_manager.stocks[Technique.CREO] < 5
 
 
 def test_vis_extraction_integration(integrated_setup):
@@ -84,13 +84,13 @@ def test_vis_extraction_integration(integrated_setup):
     # Add a vis source
     from ars.vis_aura import VisSource, VisType
 
-    source = VisSource(form=Form.CREO, amount=5, type=VisType.RAW, season="Summer", location=laboratory.location)
+    source = VisSource(form=Technique.CREO, amount=5, type=VisType.RAW, season="Summer", location=laboratory.location)
     manager.vis_manager.register_source("test_source", source)
 
     results = manager.process_vis_extraction(character, laboratory, covenant, "Summer", 1220)
 
     assert len(results) > 0
-    assert results[0][0] == Form.CREO
+    assert results[0][0] == Technique.CREO
     assert results[0][1] >= 5  # Should be at least base amount
 
 

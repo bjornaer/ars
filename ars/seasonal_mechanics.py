@@ -6,7 +6,9 @@ from typing import Dict, List, Optional
 from .character import Character
 from .covenant import Covenant
 from .dice import DiceRoller
-from .seasons import Season
+from .events import EventType, GameEvent
+from ars.core.types import Season
+from .core.types import Characteristic
 
 
 class AgingCrisis(Enum):
@@ -18,15 +20,29 @@ class AgingCrisis(Enum):
     CRITICAL = "Critical"
 
 
+class WarpingSource(Enum):
+    """Sources of warping points."""
+
+    AGING = "Aging"
+    MAGICAL_AURA = "Magical Aura"
+    SPELL_BOTCH = "Spell Botch"
+    TWILIGHT = "Twilight"
+    RITUAL = "Ritual"
+    ENCHANTED_ITEM = "Enchanted Item"
+    VIS = "Vis"
+
+
 @dataclass
 class AgingResult:
     """Result of an aging roll."""
 
     crisis: AgingCrisis
-    characteristic_lost: Optional[str] = None
-    points_lost: int = 0
+    characteristic_changes: Dict[Characteristic, int] = field(default_factory=dict)
+    apparent_age_change: int = 0
     warping_gained: int = 0
+    warping_source: Optional[WarpingSource] = None
     description: str = ""
+    died: bool = False
 
 
 class WeatherType(Enum):
@@ -47,17 +63,6 @@ class WeatherEffect:
     modifiers: Dict[str, int] = field(default_factory=dict)
 
 
-class EventType(Enum):
-    """Types of seasonal events."""
-
-    MUNDANE = "Mundane"
-    MAGICAL = "Magical"
-    POLITICAL = "Political"
-    RELIGIOUS = "Religious"
-    FAERIE = "Faerie"
-    INFERNAL = "Infernal"
-
-
 @dataclass
 class SeasonalEvent:
     """An event that occurs during a season."""
@@ -72,11 +77,12 @@ class SeasonalEvent:
 class SeasonalMechanicsManager:
     """Manages seasonal mechanics like aging, weather, and events."""
 
-    def __init__(self):
+    def __init__(self, event_manager=None):
         self.weather_effects: Dict[Season, WeatherEffect] = {}
         self.events: List[SeasonalEvent] = []
+        self.event_manager = event_manager
 
-    def process_aging(self, character: Character) -> AgingResult:
+    def process_aging(self, character: Character, year: int, season: str) -> AgingResult:
         """Process aging for a character."""
         # Base aging roll
         apparent_age = character.apparent_age or character.age
@@ -94,33 +100,96 @@ class SeasonalMechanicsManager:
         result = AgingResult(crisis=crisis)
 
         if crisis != AgingCrisis.NONE:
-            # Determine characteristic loss
-            characteristics = [
-                "Strength",
-                "Stamina",
-                "Dexterity",
-                "Quickness",
-                "Intelligence",
-                "Perception",
-                "Presence",
-                "Communication",
-            ]
-            result.characteristic_lost = random.choice(characteristics)
+            # Determine characteristic changes
+            changes = self._calculate_characteristic_changes(crisis)
+            result.characteristic_changes = changes
 
-            # Calculate points lost
-            result.points_lost = {AgingCrisis.MINOR: 1, AgingCrisis.MAJOR: 2, AgingCrisis.CRITICAL: 3}.get(crisis, 0)
+            # Apply changes to character
+            for char, change in changes.items():
+                character.characteristics[char] += change
+
+                # Check for death
+                if character.characteristics[char] <= -3:
+                    result.died = True
+
+            # Calculate apparent age change
+            result.apparent_age_change = self._calculate_age_change(crisis)
+            character.apparent_age = (character.apparent_age or character.age) + result.apparent_age_change
 
             # Apply warping points
-            result.warping_gained = result.points_lost
+            result.warping_gained = len(changes)  # One point per characteristic affected
+            result.warping_source = WarpingSource.AGING
+            character.warping_points += result.warping_gained
 
             # Create description
-            result.description = (
-                f"Age crisis: {crisis.value}. "
-                f"Lost {result.points_lost} point(s) in {result.characteristic_lost}. "
-                f"Gained {result.warping_gained} Warping Point(s)."
-            )
+            result.description = self._create_aging_description(crisis, changes, result)
+
+            # Record event if event manager exists
+            if self.event_manager:
+                self._record_aging_event(character, result, year, season)
 
         return result
+
+    def _calculate_characteristic_changes(self, crisis: AgingCrisis) -> Dict[Characteristic, int]:
+        """Calculate characteristic changes based on crisis severity."""
+        changes = {}
+        num_characteristics = {AgingCrisis.MINOR: 1, AgingCrisis.MAJOR: 2, AgingCrisis.CRITICAL: 3}.get(crisis, 0)
+
+        available_chars = list(Characteristic)
+        for _ in range(num_characteristics):
+            char = random.choice(available_chars)
+            changes[char] = -1  # Always decrease by 1 for simplicity
+            available_chars.remove(char)  # Don't affect the same characteristic twice
+
+        return changes
+
+    def _calculate_age_change(self, crisis: AgingCrisis) -> int:
+        """Calculate apparent age change based on crisis severity."""
+        age_changes = {AgingCrisis.MINOR: (1, 2), AgingCrisis.MAJOR: (2, 5), AgingCrisis.CRITICAL: (5, 10)}
+
+        if crisis in age_changes:
+            min_change, max_change = age_changes[crisis]
+            return random.randint(min_change, max_change)
+        return 0
+
+    def _create_aging_description(
+        self, crisis: AgingCrisis, changes: Dict[Characteristic, int], result: AgingResult
+    ) -> str:
+        """Create a detailed description of aging effects."""
+        parts = [f"Age crisis: {crisis.value}."]
+
+        for char, change in changes.items():
+            parts.append(f"Lost {abs(change)} point(s) in {char.value}")
+
+        if result.apparent_age_change:
+            parts.append(f"Apparent age increased by {result.apparent_age_change} years")
+
+        if result.warping_gained:
+            parts.append(f"Gained {result.warping_gained} Warping Point(s)")
+
+        if result.died:
+            parts.append("Character has died from aging crisis")
+
+        return " ".join(parts)
+
+    def _record_aging_event(self, character: Character, result: AgingResult, year: int, season: str) -> None:
+        """Record aging event."""
+        event = GameEvent(
+            type=EventType.AGING,
+            year=year,
+            season=season,
+            description=result.description,
+            details={
+                "character": character.name,
+                "crisis_type": result.crisis.value,
+                "characteristic_changes": {k.name: v for k, v in result.characteristic_changes.items()},
+                "apparent_age_change": result.apparent_age_change,
+                "warping_gained": result.warping_gained,
+                "warping_source": result.warping_source.value if result.warping_source else None,
+                "died": result.died,
+            },
+        )
+        self.event_manager.add_event(event)
 
     def generate_weather(self, season: Season) -> WeatherEffect:
         """Generate weather for a season."""

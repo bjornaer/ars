@@ -1,7 +1,10 @@
 from dataclasses import dataclass, field
+from enum import Enum
+from typing import Optional
 
-from ars.dice import ArtRoller, DiceResult
-from ars.types import Duration, Form, Range, Target, Technique
+from ars.character import Character
+from ars.dice import DiceRoller, DiceResult
+from ars.core.types import Duration, Form, Range, Target, Technique
 
 
 @dataclass
@@ -25,9 +28,9 @@ class Spell:
     technique: str
     form: str
     level: int
-    range: str
-    duration: str
-    target: str
+    range: Range
+    duration: Duration
+    target: Target
     description: str
     effects: list[SpellEffect] = field(default_factory=list)
     mastery_level: int = 0
@@ -39,6 +42,27 @@ class Spell:
     def get_magnitude(self) -> int:
         """Get total magnitude of all spell effects."""
         return sum(effect.calculate_magnitude() for effect in self.effects)
+
+    @classmethod
+    def create(cls, params: "SpellParameters", effects: list[SpellEffect] | None = None) -> "Spell":
+        """Create a spell from parameters."""
+        if effects is None:
+            base_effect = f"{params.technique} {params.form}"
+            default_effects = [SpellEffect(base_effect, 5, {"size": 2, "heat": 3})]
+        else:
+            default_effects = effects
+
+        return cls(
+            name=params.name,
+            technique=params.technique,
+            form=params.form,
+            level=params.level,
+            range=params.range,
+            duration=params.duration,
+            target=params.target,
+            description=params.description,
+            effects=default_effects,
+        )
 
 
 @dataclass
@@ -53,6 +77,9 @@ class SpellParameters:
     level: int
     aura: int = 0
     modifiers: int = 0
+    name: str = "Unnamed Spell"
+    mastery_level: int = 0
+    description: str = "Undescribed spell"
 
 
 @dataclass
@@ -127,32 +154,73 @@ class SpellRegistry:
         return templates.get(name)
 
 
+class FatigueLevel(Enum):
+    FRESH = 0
+    WINDED = 1
+    WEARY = 2
+    TIRED = 3
+    DAZED = 4
+    UNCONSCIOUS = 5
+
+
+@dataclass
+class CastingResult:
+    success: bool
+    roll_result: DiceResult
+    fatigue_cost: int
+    warping_gained: int = 0
+    botch_details: Optional[str] = None
+
+
 class SpellCaster:
-    """Handles spell casting mechanics."""
+    """Enhanced spell casting mechanics."""
 
     @staticmethod
     def cast_spell(
-        spell: "Spell", technique_score: int, form_score: int, aura: int = 0, modifiers: int = 0, stress: bool = True
-    ) -> tuple[bool, DiceResult]:
-        """Attempt to cast a spell.
+        spell: "Spell", character: "Character", aura: int = 0, modifiers: int = 0, stress: bool = True
+    ) -> CastingResult:
+        """Enhanced spell casting with fatigue tracking."""
+        # Calculate fatigue cost
+        base_fatigue = max(1, spell.level // 5)
+        fatigue_reduction = character.get_fatigue_reduction()  # From virtues/equipment
+        final_fatigue = max(0, base_fatigue - fatigue_reduction)
 
-        Args:
-            spell: The spell being cast
-            technique_score: Caster's technique score
-            form_score: Caster's form score
-            aura: Magical aura modifier
-            modifiers: Additional situational modifiers
-            stress: Whether to use stress die
+        # Check if character can cast
+        current_fatigue = character.get_fatigue_level()
+        if current_fatigue.value + final_fatigue >= FatigueLevel.UNCONSCIOUS.value:
+            return CastingResult(
+                success=False,
+                roll_result=DiceResult(rolls=[0], multiplier=1, botch=False),
+                fatigue_cost=final_fatigue,
+                botch_details="Too fatigued to cast",
+            )
 
-        Returns:
-            Tuple of (success: bool, roll_result: DiceResult)
-        """
-        roll = ArtRoller.cast_spell(
-            technique_score, form_score, aura=aura, stress=stress, modifiers=modifiers + spell.mastery_level
+        # Perform casting roll
+        roll = DiceRoller.spell_check(
+            casting_total=character.techniques[spell.technique] + character.forms[spell.form] + spell.mastery_level,
+            aura_modifier=aura,
+            fatigue_level=current_fatigue.value,
+            stress=stress,
+            botch_dice=0,
         )
 
+        # Calculate warping
+        warping = 0
+        if roll.botch or (aura > 5 and roll.rolls[0] == 1):
+            warping = 1
+
+        # Apply fatigue if cast successful
         success = roll.total >= spell.level
-        return success, roll
+        if success:
+            character.add_fatigue(final_fatigue)
+
+        return CastingResult(
+            success=success,
+            roll_result=roll,
+            fatigue_cost=final_fatigue,
+            warping_gained=warping,
+            botch_details="Magical botch!" if roll.botch else None,
+        )
 
     @staticmethod
     def calculate_spell_level(params: SpellParameters) -> int:

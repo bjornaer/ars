@@ -6,7 +6,7 @@ from rich.prompt import Confirm, Prompt
 from rich.table import Table
 
 from ars.character import Character
-from ars.types import Characteristic, Form, House, Technique
+from ars.core.types import Characteristic, Form, House, Technique
 from ars.virtues_flaws import VirtueFlaw
 
 console = Console()

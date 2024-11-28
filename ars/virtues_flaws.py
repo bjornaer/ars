@@ -6,17 +6,17 @@ class VirtueFlaw:
         self.description = description
 
     @classmethod
-    def get_virtues(cls) -> list['VirtueFlaw']:
+    def get_virtues(cls) -> list["VirtueFlaw"]:
         return []
 
     @classmethod
-    def get_flaws(cls) -> list['VirtueFlaw']:
+    def get_flaws(cls) -> list["VirtueFlaw"]:
         return []
 
     @classmethod
-    def get_virtue(cls, name: str) -> 'VirtueFlaw | None':
+    def get_virtue(cls, name: str) -> "VirtueFlaw | None":
         return next((v for v in cls.get_virtues() if v.name == name), None)
 
     @classmethod
-    def get_flaw(cls, name: str) -> 'VirtueFlaw | None':
-        return next((f for f in cls.get_flaws() if f.name == name), None) 
+    def get_flaw(cls, name: str) -> "VirtueFlaw | None":
+        return next((f for f in cls.get_flaws() if f.name == name), None)

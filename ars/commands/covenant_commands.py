@@ -4,8 +4,8 @@ from rich.layout import Layout
 from rich.panel import Panel
 from rich.table import Table
 
-from ..covenant import Building, BuildingType, Covenant, CovenantSize, VisSource
-from ..types import Form
+from ars.covenant import Building, BuildingType, Covenant, CovenantSize, VisSource
+from ars.core.types import Form
 
 console = Console()
 

@@ -1,11 +1,14 @@
 from dataclasses import dataclass, field
+from datetime import datetime
 from enum import Enum
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
 import yaml
 
-from .types import Form
+from .events import EventRecorder, EventType
+from ars.core.types import Season
+from .core.types import Form
 
 
 class AuraType(Enum):
@@ -46,16 +49,16 @@ class AuraProperties:
 
 @dataclass
 class VisSource:
-    """A source of magical vis."""
+    """A source of vis."""
 
     form: Form
     amount: int
-    type: VisType = VisType.RAW
-    season: Optional[str] = None
-    location: str = ""
+    type: VisType
+    season: str
+    location: str
     description: str = ""
     properties: List[str] = field(default_factory=list)
-    last_collected: Optional[int] = None
+    last_collected: Optional[datetime] = None
 
 
 class AuraManager:
@@ -102,10 +105,11 @@ class AuraManager:
         return effects
 
 
-class VisManager:
-    """Manages vis sources and collection."""
+class VisManager(EventRecorder):
+    """Manages vis sources and stocks."""
 
-    def __init__(self):
+    def __init__(self, event_manager=None):
+        super().__init__(event_manager)
         self.sources: Dict[str, VisSource] = {}
         self.stocks: Dict[Form, int] = {form: 0 for form in Form}
 
@@ -113,42 +117,99 @@ class VisManager:
         """Register a new vis source."""
         self.sources[name] = source
 
-    def collect_vis(self, source_name: str, year: int, season: str, aura_strength: int = 0) -> Tuple[Form, int]:
-        """Attempt to collect vis from a source."""
+        self.record_event(
+            type=EventType.VIS_COLLECTION,
+            description=f"New vis source registered: {name}",
+            details={
+                "source_name": name,
+                "form": source.form.value,
+                "amount": source.amount,
+                "location": source.location,
+            },
+            year=datetime.now().year,  # Or pass in game year
+            season=Season.from_string(source.season),
+        )
+
+    def collect_vis(
+        self, source_name: str, year: int, season: str, aura_strength: int = 0, collector: Optional[str] = None
+    ) -> Tuple[Form, int]:
+        """Collect vis from a source."""
         source = self.sources.get(source_name)
-        if not source:
+        if not source or source.season != season or source.last_collected == year:
             return None, 0
 
-        # Check if already collected this year
-        if source.last_collected == year:
-            return source.form, 0
-
-        # Check if correct season
-        if source.season and source.season != season:
-            return source.form, 0
-
         # Calculate amount with aura bonus
-        amount = source.amount + (aura_strength // 2)
-
-        # Add to stocks
+        amount = source.amount + (aura_strength // 5)  # Every 5 points of aura adds 1 vis
         self.stocks[source.form] += amount
         source.last_collected = year
 
+        self.record_event(
+            type=EventType.VIS_COLLECTION,
+            description=f"Collected {amount} pawns of {source.form.value} vis from {source_name}",
+            details={
+                "source": source_name,
+                "form": source.form.value,
+                "amount": amount,
+                "collector": collector,
+                "aura_bonus": aura_strength // 5,
+            },
+            year=year,
+            season=Season.from_string(season),
+        )
+
         return source.form, amount
 
-    def use_vis(self, form: Form, amount: int) -> bool:
-        """Attempt to use vis from stocks."""
-        if self.stocks[form] >= amount:
-            self.stocks[form] -= amount
-            return True
-        return False
+    def use_vis(
+        self,
+        form: Form,
+        amount: int,
+        purpose: str,
+        character: Optional[str] = None,
+        year: int = None,
+        season: Season = None,
+    ) -> bool:
+        """Use vis from stocks."""
+        if self.stocks[form] < amount:
+            return False
 
-    def transfer_vis(self, form: Form, amount: int, target_manager: "VisManager") -> bool:
-        """Transfer vis to another manager."""
-        if self.use_vis(form, amount):
-            target_manager.stocks[form] += amount
-            return True
-        return False
+        self.stocks[form] -= amount
+
+        self.record_event(
+            type=EventType.VIS_USE,
+            description=f"Used {amount} pawns of {form.value} vis for {purpose}",
+            details={"form": form.value, "amount": amount, "purpose": purpose, "character": character},
+            year=year or datetime.now().year,
+            season=season or Season.SPRING,  # Default value, should be passed in
+        )
+
+        return True
+
+    def transfer_vis(
+        self,
+        form: Form,
+        amount: int,
+        target_manager: "VisManager",
+        source_name: str = "covenant_stocks",
+        destination_name: str = "personal_stocks",
+        year: int = None,
+        season: Season = None,
+    ) -> bool:
+        """Transfer vis between managers."""
+        if self.stocks[form] < amount:
+            return False
+
+        self.stocks[form] -= amount
+        target_manager.stocks[form] += amount
+
+        self.record_event(
+            type=EventType.VIS_TRANSFER,
+            description=f"Transferred {amount} pawns of {form.value} vis from {source_name} to {destination_name}",
+            details={"form": form.value, "amount": amount, "source": source_name, "destination": destination_name},
+            year=year or datetime.now().year,
+            season=season or Season.SPRING,
+        )
+
+        return True
 
     def save(self, filepath: Path) -> None:
         """Save vis data to file."""

@@ -30,10 +30,9 @@ def cast(character_name: str, spell_name: str, aura: int, stress: bool, modifier
             console.print(f"[red]Spell '{spell_name}' not found for {character_name}[/red]")
             return
 
-        success, result = SpellCaster.cast_spell(
+        result = SpellCaster.cast_spell(
             spell,
-            character.techniques[spell.technique],
-            character.forms[spell.form],
+            character,
             aura=aura,
             modifiers=modifiers,
             stress=stress,
@@ -44,16 +43,23 @@ def cast(character_name: str, spell_name: str, aura: int, stress: bool, modifier
         table.add_column("Aspect", style="cyan")
         table.add_column("Value", style="green")
 
-        table.add_row("Roll", str(result.rolls))
-        table.add_row("Multiplier", str(result.multiplier))
+        table.add_row("Roll", str(result.roll_result.rolls))
+        table.add_row("Multiplier", str(result.roll_result.multiplier))
         table.add_row("Modifiers", str(modifiers))
         table.add_row("Aura", str(aura))
-        table.add_row("Total", str(result.total))
+        table.add_row("Total", str(result.roll_result.total))
         table.add_row("Target Level", str(spell.level))
-        table.add_row("Success", "[green]Yes[/green]" if success else "[red]No[/red]")
+        table.add_row("Success", "[green]Yes[/green]" if result.success else "[red]No[/red]")
+        table.add_row("Fatigue Cost", str(result.fatigue_cost))
 
-        if result.botch:
-            table.add_row("Botch!", "[red]Yes[/red]")
+        if result.warping_gained:
+            table.add_row("Warping Gained", f"[red]{result.warping_gained}[/red]")
+
+        if result.botch_details:
+            table.add_row("Botch!", f"[red]{result.botch_details}[/red]")
+
+        # Update character state
+        character.save()
 
         console.print(table)
 

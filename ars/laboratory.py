@@ -1,11 +1,11 @@
 from dataclasses import dataclass, field
 from enum import Enum
-from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
-import yaml
-
-from .types import Form, Technique
+from ars.events import EventRecorder, EventType
+from ars.core.types import Season
+from ars.serialization import Serializable
+from ars.core.types import Form, Technique
 
 
 class LabFeature(Enum):
@@ -35,7 +35,7 @@ class LabSpecialization(Enum):
 
 
 @dataclass
-class LabEquipment:
+class LabEquipment(Serializable):
     """Laboratory equipment and tools."""
 
     name: str
@@ -45,9 +45,19 @@ class LabEquipment:
     techniques: List[Technique] = field(default_factory=list)
     description: str = ""
 
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> "LabEquipment":
+        if data.get("specialization"):
+            data["specialization"] = LabSpecialization(data["specialization"])
+        if "forms" in data:
+            data["forms"] = [Form(f) for f in data["forms"]]
+        if "techniques" in data:
+            data["techniques"] = [Technique(t) for t in data["techniques"]]
+        return cls(**data)
+
 
 @dataclass
-class Laboratory:
+class Laboratory(EventRecorder):
     """Represents a magus's laboratory."""
 
     owner: str
@@ -61,6 +71,7 @@ class Laboratory:
     health: int = 0
     aesthetics: int = 0
     upkeep: int = 0
+    location: str = "Covenant"
 
     # Magical properties
     magical_aura: int = 0
@@ -69,6 +80,29 @@ class Laboratory:
     # Form and technique bonuses
     form_bonuses: Dict[Form, int] = field(default_factory=dict)
     technique_bonuses: Dict[Technique, int] = field(default_factory=dict)
+
+    # Activity modifiers
+    activity_modifiers: Dict[str, int] = field(default_factory=dict)
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> "Laboratory":
+        # Convert enums
+        if "features" in data:
+            data["features"] = [LabFeature(f) for f in data["features"]]
+        if "specializations" in data:
+            data["specializations"] = [LabSpecialization(s) for s in data["specializations"]]
+
+        # Convert equipment
+        if "equipment" in data:
+            data["equipment"] = [LabEquipment.from_dict(e) for e in data["equipment"]]
+
+        # Convert form and technique bonuses
+        if "form_bonuses" in data:
+            data["form_bonuses"] = {Form(k): v for k, v in data["form_bonuses"].items()}
+        if "technique_bonuses" in data:
+            data["technique_bonuses"] = {Technique(k): v for k, v in data["technique_bonuses"].items()}
+
+        return cls(**data)
 
     def calculate_total_bonus(self, technique: Technique, form: Form) -> int:
         """Calculate total lab bonus for a specific combination."""
@@ -99,70 +133,67 @@ class Laboratory:
                 return self.equipment.pop(i)
         return None
 
-    def save(self, directory: Path = Path("ars/data/laboratories")) -> None:
-        """Save laboratory to file."""
-        directory.mkdir(parents=True, exist_ok=True)
-        filepath = directory / f"{self.owner.lower().replace(' ', '_')}_lab.yml"
+    def calculate_extraction_bonus(self) -> int:
+        """Calculate laboratory's bonus to vis extraction."""
+        bonus = self.activity_modifiers.get("vis_extraction", 0)
+        bonus += self.magical_aura // 2
 
-        # Convert enums to strings for YAML
-        data = {
-            "owner": self.owner,
-            "size": self.size,
-            "features": [f.value for f in self.features],
-            "equipment": [
-                {
-                    "name": e.name,
-                    "bonus": e.bonus,
-                    "specialization": e.specialization.value if e.specialization else None,
-                    "forms": [f.value for f in e.forms],
-                    "techniques": [t.value for t in e.techniques],
-                    "description": e.description,
-                }
-                for e in self.equipment
-            ],
-            "specializations": [s.value for s in self.specializations],
-            "safety": self.safety,
-            "health": self.health,
-            "aesthetics": self.aesthetics,
-            "upkeep": self.upkeep,
-            "magical_aura": self.magical_aura,
-            "warping": self.warping,
-            "form_bonuses": {k.value: v for k, v in self.form_bonuses.items()},
-            "technique_bonuses": {k.value: v for k, v in self.technique_bonuses.items()},
-        }
+        # Add specialization bonus
+        if LabSpecialization.VIS_EXTRACTION in self.specializations:
+            bonus += 3  # Standard bonus for specialization
 
-        with filepath.open("w") as f:
-            yaml.safe_dump(data, f)
+        return bonus
 
-    @classmethod
-    def load(cls, owner: str, directory: Path = Path("ars/data/laboratories")) -> "Laboratory":
-        """Load laboratory from file."""
-        filepath = directory / f"{owner.lower().replace(' ', '_')}_lab.yml"
+    def calculate_enchantment_bonus(self) -> int:
+        """Calculate laboratory's enchantment bonus."""
+        bonus = 0
 
-        with filepath.open("r") as f:
-            data = yaml.safe_load(f)
+        # Specialization bonus
+        if LabSpecialization.ENCHANTING in self.specializations:
+            bonus += 3
 
-            # Convert strings back to enums
-            data["features"] = [LabFeature(f) for f in data["features"]]
-            data["specializations"] = [LabSpecialization(s) for s in data["specializations"]]
+        # Equipment bonus
+        bonus += sum(item.bonus for item in self.equipment if item.specialization == LabSpecialization.ENCHANTING)
 
-            # Convert equipment data
-            equipment = []
-            for e in data["equipment"]:
-                equipment.append(
-                    LabEquipment(
-                        name=e["name"],
-                        bonus=e["bonus"],
-                        specialization=LabSpecialization(e["specialization"]) if e["specialization"] else None,
-                        forms=[Form(f) for f in e["forms"]],
-                        techniques=[Technique(t) for t in e["techniques"]],
-                        description=e["description"],
-                    )
-                )
-            data["equipment"] = equipment
+        # Size bonus
+        bonus += max(0, self.size - 2)
 
-            # Convert form and technique bonuses
-            data["form_bonuses"] = {Form(k): v for k, v in data["form_bonuses"].items()}
-            data["technique_bonuses"] = {Technique(k): v for k, v in data["technique_bonuses"].items()}
+        # Activity modifier
+        bonus += self.activity_modifiers.get("enchanting", 0)
 
-            return cls(**data)
+        return bonus
+
+    def add_feature(self, feature: LabFeature) -> None:
+        """Add a physical feature to the laboratory."""
+        if feature not in self.features:
+            self.features.append(feature)
+            # Update characteristics based on feature
+            if feature in [LabFeature.ORGANIZED, LabFeature.PROTECTED, LabFeature.WELL_VENTILATED]:
+                self.safety += 1
+            elif feature in [LabFeature.CHAOTIC, LabFeature.EXPOSED, LabFeature.STUFFY]:
+                self.safety -= 1
+
+    def add_specialization(self, spec: LabSpecialization) -> None:
+        """Add a specialization to the laboratory."""
+        if spec not in self.specializations:
+            self.specializations.append(spec)
+
+    def perform_activity(self, activity_type: str, details: Dict[str, any], year: int, season: Season) -> None:
+        """Record laboratory activity."""
+        self.record_event(
+            type=EventType.LABORATORY_WORK,
+            description=f"Laboratory activity: {activity_type} in {self.owner}'s laboratory",
+            details={
+                "owner": self.owner,
+                "activity_type": activity_type,
+                "activity_details": details,
+                "laboratory_conditions": {
+                    "size": self.size,
+                    "aura": self.magical_aura,
+                    "safety": self.safety,
+                    "specializations": [spec.value for spec in self.specializations],
+                },
+            },
+            year=year,
+            season=season,
+        )

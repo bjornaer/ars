@@ -2,11 +2,19 @@ import pytest
 
 from ars.adventure import Adventure, AdventureManager, AdventureType, Encounter, EncounterType, RewardType
 from ars.character import Character
+from ars.core.types import House
 
 
 @pytest.fixture
 def test_character():
-    char = Character(name="Testus", player="Test Player", saga="Test Saga", covenant="Test Covenant")
+    char = Character(
+        name="Testus",
+        player="Test Player",
+        saga="Test Saga",
+        covenant="Test Covenant",
+        house=House.BJORNAER,
+        age=45,
+    )
     # Add some abilities and arts
     char.abilities = {"Magic Theory": 4, "Single Weapon": 3, "Leadership": 2}
     char.techniques = {"Creo": 10, "Rego": 8}

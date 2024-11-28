@@ -5,7 +5,7 @@ from typing import Any, Dict, List, Optional
 
 import yaml
 
-from ars.types import Form
+from ars.core.types import Form
 from ars.vis_aura import VisSource
 
 
@@ -38,6 +38,27 @@ class MundaneResource(Resource):
     size: int = 1
     resource_type: str = "tools"
     workers_required: int = 0
+    maintenance_cost: float = 1.0
+    condition_threshold: int = 50
+    condition: int = 100
+
+    def calculate_maintenance(self, season: str, year: int) -> float:
+        """Calculate maintenance cost for the resource."""
+        return self.maintenance_cost * self.size
+
+    def needs_repairs(self) -> bool:
+        """Check if the resource needs repairs."""
+        return self.condition < self.condition_threshold
+
+    def repair(self, amount: int) -> None:
+        """Repair the resource."""
+        self.condition += amount
+        if self.condition > 100:
+            self.condition = 100
+
+    def is_deteriorated(self) -> bool:
+        """Check if the resource is deteriorated."""
+        return self.condition < self.condition_threshold
 
 
 @dataclass
@@ -80,7 +101,29 @@ class BuildingProject:
     seasons_completed: int = 0
     workers_assigned: int = 0
     resources_committed: Dict[str, int] = field(default_factory=dict)
+    resources_consumed: Dict[str, int] = field(default_factory=dict)
     status: str = "Not Started"
+
+    def is_completed(self) -> bool:
+        """Check if the project is completed."""
+        return self.status == "Completed"
+
+    def is_in_progress(self) -> bool:
+        """Check if the project is in progress."""
+        return self.status == "In Progress"
+
+    def is_not_started(self) -> bool:
+        """Check if the project is not started."""
+        return self.status == "Not Started"
+
+    def advance_season(self, season: str, year: int) -> int:
+        """Advance the project by one season."""
+        if self.is_not_started():
+            return 0
+        self.resources_committed[season] += 1
+        self.resources_consumed[season] += 1
+
+        return 1
 
 
 class CovenantEconomy:
@@ -95,6 +138,8 @@ class CovenantEconomy:
         self.treasury: float = 0.0
         self.stored_vis: Dict[Form, int] = {}
         self.vis_sources: List[VisSource] = []
+        self.active_projects: List[BuildingProject] = []
+        self.buildings: List[MundaneResource] = []
 
     def add_resource(self, resource: Resource) -> bool:
         """Add a new resource to the covenant."""
@@ -126,38 +171,39 @@ class CovenantEconomy:
         self.projects[project.name] = project
         self.treasury -= project.cost
         project.status = "In Progress"
+        self.active_projects.append(project)
         return True
 
-    def process_season(self, season: str) -> Dict[str, Any]:
+    def process_season(self, season: str, year: int) -> Dict[str, Any]:
         """Process economic activities for a season."""
         return {
-            "income": self._process_income(season),
-            "expenses": self._process_expenses(season),
-            "projects": self._process_projects(season),
-            "maintenance": self._process_maintenance(season),
+            "income": self._process_income(season, year),
+            "expenses": self._process_expenses(season, year),
+            "projects": self._process_projects(season, year),
+            "maintenance": self._process_maintenance(season, year),
         }
 
-    def _process_income(self, season: str) -> Dict[str, int]:
+    def _process_income(self, season: str, year: int) -> Dict[str, int]:
         """Process seasonal income from various sources."""
         income = {}
         for source in self.income_sources:
             if source.season == season or source.season == "Any":
-                income[source.name] = source.generate_income()
+                income[source.name] = source.generate_income(year)
         return income
 
-    def _process_expenses(self, season: str) -> Dict[str, int]:
+    def _process_expenses(self, season: str, year: int) -> Dict[str, int]:
         """Process seasonal expenses."""
         expenses = {}
         for expense in self.expenses:
             if expense.season == season or expense.season == "Any":
-                expenses[expense.name] = expense.calculate_cost()
+                expenses[expense.name] = expense.calculate_cost(year)
         return expenses
 
-    def _process_projects(self, season: str) -> Dict[str, Any]:
+    def _process_projects(self, season: str, year: int) -> Dict[str, Any]:
         """Process ongoing building and improvement projects."""
         results = {}
         for project in self.active_projects:
-            progress = project.advance_season()
+            progress = project.advance_season(season, year)
             results[project.name] = {
                 "progress": progress,
                 "completed": project.is_completed(),
@@ -165,11 +211,11 @@ class CovenantEconomy:
             }
         return results
 
-    def _process_maintenance(self, season: str) -> Dict[str, Any]:
+    def _process_maintenance(self, season: str, year: int) -> Dict[str, Any]:
         """Process maintenance activities."""
         maintenance = {}
         for building in self.buildings:
-            cost = building.calculate_maintenance(season)
+            cost = building.calculate_maintenance(season, year)
             if cost > 0:
                 maintenance[building.name] = {
                     "cost": cost,
@@ -178,7 +224,7 @@ class CovenantEconomy:
                 }
         return maintenance
 
-    def _calculate_deterioration(self, resource: MundaneResource, season: str) -> int:
+    def _calculate_deterioration(self, resource: MundaneResource, season: str, year: int) -> int:
         """Calculate resource deterioration."""
         base_deterioration = 1
 
@@ -193,6 +239,8 @@ class CovenantEconomy:
         if resource.workers_required > 0:
             worker_ratio = min(resource.workers_required, self._get_available_workers()) / resource.workers_required
             base_deterioration = int(base_deterioration * (2 - worker_ratio))
+
+        resource.condition -= base_deterioration
 
         return base_deterioration
 

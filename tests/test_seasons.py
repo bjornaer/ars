@@ -4,7 +4,7 @@ from ars.character import Character
 from ars.covenant import Covenant
 from ars.laboratory import Laboratory
 from ars.seasons import ActivityType, GameYear, Season, SeasonManager
-from ars.types import House
+from ars.core.types import House
 
 
 @pytest.fixture
@@ -91,7 +91,7 @@ def test_study_execution(season_manager, test_character):
 def test_research_execution(season_manager, test_character, tmp_path):
     """Test research activity execution."""
     from ars.spell_research import ResearchProject, ResearchType
-    from ars.types import Form, Technique
+    from ars.core.types import Form, Technique
 
     # Setup research project
     project = ResearchProject(

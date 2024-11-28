@@ -1,6 +1,6 @@
 import pytest
 
-from ars.types import Form
+from ars.core.types import Form
 from ars.vis_aura import AuraManager, AuraProperties, AuraType, VisManager, VisSource, VisType
 
 
@@ -17,7 +17,7 @@ def test_aura():
 @pytest.fixture
 def test_vis_source():
     return VisSource(
-        form=Form.CREO,
+        form=Form.IGNEM,
         amount=5,
         type=VisType.RAW,
         season="Summer",
@@ -95,7 +95,7 @@ class TestVisSystem:
         """Test registering and retrieving vis sources."""
         vis_manager.register_source("Test Source", test_vis_source)
         assert "Test Source" in vis_manager.sources
-        assert vis_manager.sources["Test Source"].form == Form.CREO
+        assert vis_manager.sources["Test Source"].form == Form.IGNEM
         assert vis_manager.sources["Test Source"].amount == 5
 
     def test_vis_collection(self, vis_manager, test_vis_source):
@@ -109,8 +109,8 @@ class TestVisSystem:
         # Test collecting in correct season
         form, amount = vis_manager.collect_vis("Test Source", 1220, "Summer", 0)
         assert amount == 5
-        assert form == Form.CREO
-        assert vis_manager.stocks[Form.CREO] == 5
+        assert form == Form.IGNEM
+        assert vis_manager.stocks[Form.IGNEM] == 5
 
         # Test collecting twice in same year
         form, amount = vis_manager.collect_vis("Test Source", 1220, "Summer", 0)
@@ -125,33 +125,33 @@ class TestVisSystem:
 
     def test_vis_usage(self, vis_manager):
         """Test using vis from stocks."""
-        vis_manager.stocks[Form.CREO] = 10
+        vis_manager.stocks[Form.IGNEM] = 10
 
         # Test successful usage
-        assert vis_manager.use_vis(Form.CREO, 5)
-        assert vis_manager.stocks[Form.CREO] == 5
+        assert vis_manager.use_vis(Form.IGNEM, 5)
+        assert vis_manager.stocks[Form.IGNEM] == 5
 
         # Test insufficient vis
-        assert not vis_manager.use_vis(Form.CREO, 10)
-        assert vis_manager.stocks[Form.CREO] == 5
+        assert not vis_manager.use_vis(Form.IGNEM, 10)
+        assert vis_manager.stocks[Form.IGNEM] == 5
 
     def test_vis_transfer(self, vis_manager):
         """Test transferring vis between managers."""
         other_manager = VisManager()
-        vis_manager.stocks[Form.CREO] = 10
+        vis_manager.stocks[Form.IGNEM] = 10
 
         # Test successful transfer
-        assert vis_manager.transfer_vis(Form.CREO, 5, other_manager)
-        assert vis_manager.stocks[Form.CREO] == 5
-        assert other_manager.stocks[Form.CREO] == 5
+        assert vis_manager.transfer_vis(Form.IGNEM, 5, other_manager)
+        assert vis_manager.stocks[Form.IGNEM] == 5
+        assert other_manager.stocks[Form.IGNEM] == 5
 
         # Test insufficient vis
-        assert not vis_manager.transfer_vis(Form.CREO, 10, other_manager)
+        assert not vis_manager.transfer_vis(Form.IGNEM, 10, other_manager)
 
     def test_vis_save_load(self, vis_manager, test_vis_source, tmp_path):
         """Test saving and loading vis data."""
         vis_manager.register_source("Test Source", test_vis_source)
-        vis_manager.stocks[Form.CREO] = 10
+        vis_manager.stocks[Form.IGNEM] = 10
 
         # Save
         filepath = tmp_path / "vis_test.yml"
@@ -161,8 +161,8 @@ class TestVisSystem:
         loaded_manager = VisManager.load(filepath)
 
         assert "Test Source" in loaded_manager.sources
-        assert loaded_manager.stocks[Form.CREO] == 10
-        assert loaded_manager.sources["Test Source"].form == Form.CREO
+        assert loaded_manager.stocks[Form.IGNEM] == 10
+        assert loaded_manager.sources["Test Source"].form == Form.IGNEM
         assert loaded_manager.sources["Test Source"].amount == 5
 
 

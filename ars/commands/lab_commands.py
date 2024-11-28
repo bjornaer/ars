@@ -1,11 +1,11 @@
 import click
 from rich.console import Console
 
-from ..character import Character
-from ..lab_activities import ItemEnchantment, LongevityRitual, VisExtraction
-from ..lab_display import show_laboratory
-from ..laboratory import LabEquipment, LabFeature, Laboratory, LabSpecialization
-from ..types import Form, Technique
+from ars.character import Character
+from ars.lab_activities import ItemEnchantment, LongevityRitual, VisExtraction
+from ars.lab_display import show_laboratory
+from ars.laboratory import LabEquipment, LabFeature, Laboratory, LabSpecialization
+from ars.core.types import Form, Technique
 
 console = Console()
 

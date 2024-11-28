@@ -5,11 +5,12 @@ from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
 
-from ..character import Character
-from ..laboratory import Laboratory
-from ..magic_items import InstallationType, ItemCreationManager, ItemEffect, ItemType, MagicItem
-from ..types import Form, Technique
-from ..vis_aura import VisManager
+from ars.character import Character
+from ars.laboratory import Laboratory
+from ars.magic_items import InstallationType, ItemCreationManager, ItemEffect, ItemType, MagicItem
+# from ars.saga import SagaManager
+from ars.core.types import Form, Technique
+from ars.vis_aura import VisManager
 
 console = Console()
 
@@ -171,8 +172,13 @@ def continue_enchantment(character_name: str):
         vis_manager = VisManager.load(Path("ars/data/vis_stocks.yml"))
         manager = ItemCreationManager.load_state(Path("ars/data/enchantment_projects.yml"))
 
-        # Continue project
-        result = manager.continue_project(character, laboratory, vis_manager)
+        # # Get current season and year from saga manager
+        # saga_manager = SagaManager.load(character.saga)
+        # current_year = saga_manager.current_year
+        # current_season = saga_manager.current_season
+
+        # Continue project with season tracking
+        result = manager.continue_project(character, laboratory, vis_manager, year=current_year, season=current_season)
 
         if "error" in result:
             console.print(f"[red]{result['error']}[/red]")

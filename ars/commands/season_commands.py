@@ -4,9 +4,9 @@ from rich.panel import Panel
 from rich.prompt import Confirm
 from rich.table import Table
 
-from ..character import Character
-from ..covenant import Covenant
-from ..seasons import ActivityType, Season, SeasonManager
+from ars.character import Character
+from ars.covenant import Covenant
+from ars.seasons import ActivityType, Season, SeasonManager
 
 console = Console()
 

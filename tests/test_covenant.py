@@ -1,30 +1,34 @@
+from unittest.mock import Mock
+
 import pytest
 
 from ars.covenant import Building, BuildingType, Covenant, CovenantSize, VisSource
-from ars.types import Form
+from ars.events import EventType
+from ars.core.types import Season
+from ars.core.types import Form
 
 
 @pytest.fixture
-def sample_covenant():
-    return Covenant(name="Test Covenant", size=CovenantSize.SMALL, age=10, aura=3)
+def event_manager():
+    return Mock()
 
 
 @pytest.fixture
-def sample_building():
-    return Building(
-        type=BuildingType.LABORATORY,
-        name="Test Laboratory",
-        size=2,
-        quality=3,
-        description="A well-equipped laboratory",
-        maintenance_cost=5,
-    )
+def test_covenant(event_manager):
+    covenant = Covenant(name="Test Covenant", size=CovenantSize.MEDIUM, age=50, aura=3)
+    covenant.event_manager = event_manager
+    return covenant
 
 
 @pytest.fixture
-def sample_vis_source():
+def test_building():
+    return Building(type=BuildingType.LABORATORY, name="Test Laboratory", size=3, quality=2, maintenance_cost=10)
+
+
+@pytest.fixture
+def test_vis_source():
     return VisSource(
-        name="Magic Spring",
+        name="Sacred Spring",
         form=Form.AQUAM,
         amount=3,
         season="Spring",
@@ -32,131 +36,121 @@ def sample_vis_source():
     )
 
 
-def test_covenant_creation(sample_covenant):
-    """Test basic covenant creation."""
-    assert sample_covenant.name == "Test Covenant"
-    assert sample_covenant.size == CovenantSize.SMALL
-    assert sample_covenant.age == 10
-    assert sample_covenant.aura == 3
-    assert len(sample_covenant.buildings) == 0
-    assert len(sample_covenant.vis_sources) == 0
+class TestCovenant:
+    def test_add_building(self, test_covenant, test_building, event_manager):
+        """Test adding a building with event recording."""
+        test_covenant.add_building(test_building, year=1220, season=Season.SPRING)
 
+        assert test_building in test_covenant.buildings
+        assert test_covenant.expenses == test_building.maintenance_cost
 
-def test_add_building(sample_covenant, sample_building):
-    """Test adding a building to the covenant."""
-    initial_expenses = sample_covenant.expenses
-    sample_covenant.add_building(sample_building)
+        event_manager.record_event.assert_called_once()
+        event = event_manager.record_event.call_args[0][0]
+        assert event.type == EventType.COVENANT_CHANGE
+        assert test_building.name in event.description
+        assert event.details["building_type"] == BuildingType.LABORATORY.value
+        assert event.details["maintenance_cost"] == test_building.maintenance_cost
 
-    assert len(sample_covenant.buildings) == 1
-    assert sample_covenant.buildings[0].name == "Test Laboratory"
-    assert sample_covenant.expenses == initial_expenses + sample_building.maintenance_cost
+    def test_add_vis_source(self, test_covenant, test_vis_source, event_manager):
+        """Test adding a vis source with event recording."""
+        test_covenant.add_vis_source(test_vis_source, year=1220, season=Season.SPRING)
 
+        assert test_vis_source in test_covenant.vis_sources
 
-def test_add_vis_source(sample_covenant, sample_vis_source):
-    """Test adding a vis source to the covenant."""
-    sample_covenant.add_vis_source(sample_vis_source)
+        event_manager.record_event.assert_called_once()
+        event = event_manager.record_event.call_args[0][0]
+        assert event.type == EventType.VIS_COLLECTION
+        assert test_vis_source.name in event.description
+        assert event.details["form"] == Form.AQUAM.value
+        assert event.details["amount"] == test_vis_source.amount
 
-    assert len(sample_covenant.vis_sources) == 1
-    assert sample_covenant.vis_sources[0].name == "Magic Spring"
-    assert sample_covenant.vis_sources[0].form == Form.AQUAM
+    def test_collect_vis(self, test_covenant, test_vis_source, event_manager):
+        """Test collecting vis with event recording."""
+        test_covenant.add_vis_source(test_vis_source)
+        event_manager.reset_mock()  # Reset mock after adding source
 
+        collected = test_covenant.collect_vis(season="Spring", year=1220)
 
-def test_collect_vis(sample_covenant, sample_vis_source):
-    """Test collecting vis from sources."""
-    sample_covenant.add_vis_source(sample_vis_source)
+        assert collected[Form.AQUAM] == test_vis_source.amount
+        assert test_covenant.vis_stocks[Form.AQUAM] == test_vis_source.amount
+        assert test_vis_source.claimed
 
-    # First collection
-    collected = sample_covenant.collect_vis("Spring")
-    assert collected[Form.AQUAM] == 3
-    assert sample_covenant.vis_stocks[Form.AQUAM] == 3
+        event_manager.record_event.assert_called_once()
+        event = event_manager.record_event.call_args[0][0]
+        assert event.type == EventType.VIS_COLLECTION
+        assert "Collected" in event.description
+        assert event.details["new_stock"] == test_vis_source.amount
 
-    # Second collection in same season should yield nothing as source is claimed
-    collected = sample_covenant.collect_vis("Spring")
-    assert collected[Form.AQUAM] == 0
+    def test_add_book(self, test_covenant, event_manager):
+        """Test adding a book with event recording."""
+        test_covenant.add_book(name="De Magica", level=10, year=1220, season=Season.SPRING)
 
+        assert "De Magica" in test_covenant.library.books
+        assert test_covenant.library.books["De Magica"] == 10
 
-def test_library_management(sample_covenant):
-    """Test library book management."""
-    sample_covenant.add_book("Art of Magic", 5)
+        event_manager.record_event.assert_called_once()
+        event = event_manager.record_event.call_args[0][0]
+        assert event.type == EventType.COVENANT_CHANGE
+        assert "De Magica" in event.description
+        assert event.details["level"] == 10
 
-    assert "Art of Magic" in sample_covenant.library.books
-    assert sample_covenant.library.books["Art of Magic"] == 5
+    def test_add_magus(self, test_covenant, event_manager):
+        """Test adding a magus with event recording."""
+        test_covenant.add_magus(name="Marcus of Bonisagus", year=1220, season=Season.SPRING)
 
-    # Test library capacity
-    for i in range(sample_covenant.library.capacity):
-        sample_covenant.add_book(f"Book {i}", 1)
+        assert "Marcus of Bonisagus" in test_covenant.magi
 
-    with pytest.raises(ValueError):
-        sample_covenant.add_book("One Too Many", 1)
+        event_manager.record_event.assert_called_once()
+        event = event_manager.record_event.call_args[0][0]
+        assert event.type == EventType.COVENANT_CHANGE
+        assert "Marcus of Bonisagus" in event.description
+        assert event.details["total_magi"] == 1
 
+    def test_remove_magus(self, test_covenant, event_manager):
+        """Test removing a magus with event recording."""
+        test_covenant.add_magus("Marcus of Bonisagus")
+        event_manager.reset_mock()  # Reset mock after adding magus
 
-def test_covenant_finances(sample_covenant, sample_building):
-    """Test covenant financial calculations."""
-    initial_income = sample_covenant.calculate_income()
-    initial_expenses = sample_covenant.calculate_expenses()
+        test_covenant.remove_magus(name="Marcus of Bonisagus", reason="died", year=1220, season=Season.SPRING)
 
-    sample_covenant.add_building(sample_building)
+        assert "Marcus of Bonisagus" not in test_covenant.magi
 
-    # Expenses should increase by building maintenance
-    assert sample_covenant.calculate_expenses() == initial_expenses + sample_building.maintenance_cost
-    # Income should remain the same
-    assert sample_covenant.calculate_income() == initial_income
+        event_manager.record_event.assert_called_once()
+        event = event_manager.record_event.call_args[0][0]
+        assert event.type == EventType.COVENANT_CHANGE
+        assert "died" in event.description
+        assert event.details["total_magi"] == 0
 
+    def test_library_capacity(self, test_covenant, event_manager):
+        """Test library capacity limit with event recording."""
+        test_covenant.library.capacity = 1
+        test_covenant.add_book("Book 1", 10)
 
-def test_save_load(sample_covenant, sample_building, sample_vis_source, tmp_path):
-    """Test saving and loading covenant data."""
-    # Add some data to save
-    sample_covenant.add_building(sample_building)
-    sample_covenant.add_vis_source(sample_vis_source)
-    sample_covenant.add_book("Test Book", 3)
+        with pytest.raises(ValueError, match="Library capacity reached"):
+            test_covenant.add_book("Book 2", 5)
 
-    # Save covenant
-    sample_covenant.save(directory=tmp_path)
+    def test_serialization(self, test_covenant, test_building, test_vis_source, tmp_path):
+        """Test covenant serialization and deserialization."""
+        # Add some data
+        test_covenant.add_building(test_building)
+        test_covenant.add_vis_source(test_vis_source)
+        test_covenant.add_magus("Marcus of Bonisagus")
 
-    # Load covenant
-    loaded_covenant = Covenant.load(sample_covenant.name, directory=tmp_path)
+        # Convert to dict and back
+        data = test_covenant.to_dict()
+        loaded_covenant = Covenant.from_dict(data)
 
-    # Verify data
-    assert loaded_covenant.name == sample_covenant.name
-    assert loaded_covenant.size == sample_covenant.size
-    assert len(loaded_covenant.buildings) == 1
-    assert loaded_covenant.buildings[0].name == "Test Laboratory"
-    assert len(loaded_covenant.vis_sources) == 1
-    assert loaded_covenant.vis_sources[0].name == "Magic Spring"
-    assert "Test Book" in loaded_covenant.library.books
+        assert loaded_covenant.name == test_covenant.name
+        assert loaded_covenant.size == test_covenant.size
+        assert len(loaded_covenant.buildings) == len(test_covenant.buildings)
+        assert len(loaded_covenant.vis_sources) == len(test_covenant.vis_sources)
+        assert loaded_covenant.magi == test_covenant.magi
 
+    def test_aura_effects(self, test_covenant):
+        """Test applying aura effects."""
+        initial_aura = test_covenant.aura
+        test_covenant.apply_aura_effects({"magical_activities": 2, "vis_extraction": 1})
 
-def test_building_types():
-    """Test building type enumeration."""
-    assert BuildingType.LABORATORY.value == "Laboratory"
-    assert BuildingType.LIBRARY.value == "Library"
-    building = Building(type=BuildingType.TOWER, name="Wizard's Tower", size=3, quality=4)
-    assert building.type == BuildingType.TOWER
-
-
-def test_covenant_size():
-    """Test covenant size enumeration."""
-    assert CovenantSize.SMALL.value == "Small"
-    assert CovenantSize.MEDIUM.value == "Medium"
-    covenant = Covenant(name="Test Covenant", size=CovenantSize.LARGE, age=50)
-    assert covenant.size == CovenantSize.LARGE
-
-
-def test_vis_source_claiming():
-    """Test vis source claiming mechanism."""
-    source = VisSource(name="Test Source", form=Form.IGNEM, amount=5, season="Summer", description="Test")
-
-    assert not source.claimed
-    source.claimed = True
-    assert source.claimed
-
-
-def test_covenant_population(sample_covenant):
-    """Test covenant population management."""
-    sample_covenant.magi.append("Testus of Bonisagus")
-    sample_covenant.covenfolk = 20
-    sample_covenant.grogs = 10
-
-    assert len(sample_covenant.magi) == 1
-    assert sample_covenant.covenfolk == 20
-    assert sample_covenant.grogs == 10
+        assert test_covenant.aura == initial_aura + 2
+        for source in test_covenant.vis_sources:
+            assert source.amount >= 1  # Should never go below 1

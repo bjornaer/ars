@@ -5,8 +5,8 @@ from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
 
-from ..types import Form
-from ..vis_aura import AuraManager, AuraProperties, AuraType, VisManager, VisSource, VisType
+from ars.core.types import Form
+from ars.vis_aura import AuraManager, AuraProperties, AuraType, VisManager, VisSource, VisType
 
 console = Console()
 

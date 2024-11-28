@@ -1,207 +1,127 @@
+from unittest.mock import Mock, patch
+
 import pytest
 
 from ars.character import Character
+from ars.events import EventType
 from ars.laboratory import Laboratory
-from ars.spell_research import ResearchModifier, ResearchOutcome, ResearchProject, ResearchType
-from ars.spell_research_manager import ResearchResult, SpellResearchManager
-from ars.spells import Spell, SpellParameters
-from ars.types import Form, House, Technique
+from ars.core.types import Season
+from ars.spell_research import ResearchProject, ResearchResult, ResearchType, SpellResearchManager
+from ars.core.types import Form, Technique
+
+
+@pytest.fixture
+def event_manager():
+    return Mock()
+
+
+@pytest.fixture
+def research_manager(event_manager):
+    return SpellResearchManager(event_manager)
 
 
 @pytest.fixture
 def test_character():
     char = Character(
-        name="Testus of Bonisagus",
-        player="Test Player",
-        saga="Test Saga",
-        covenant="Test Covenant",
-        house=House.BONISAGUS,
+        name="Testus of Bonisagus", player="Test Player", saga="Test Saga", covenant="Test Covenant", house="Bonisagus"
     )
-    # Add some Art scores
-    char.techniques["Creo"] = 10
-    char.forms["Ignem"] = 8
+    char.techniques = {"Creo": 10, "Rego": 8}
+    char.forms = {"Ignem": 8, "Vim": 6}
     return char
 
 
 @pytest.fixture
 def test_laboratory():
-    return Laboratory(owner="Testus of Bonisagus", size=0, magical_aura=3)
+    return Laboratory(owner="Testus of Bonisagus", size=3, magical_aura=3)
 
 
 @pytest.fixture
-def test_spell():
-    params = SpellParameters(technique=Technique.CREO, form=Form.IGNEM, level=10, name="Test Fire Spell")
-    return Spell.create(params)
-
-
-@pytest.fixture
-def test_project(test_character):
+def test_project():
     return ResearchProject(
-        researcher=test_character.name,
+        researcher="Testus of Bonisagus",
         research_type=ResearchType.SPELL_CREATION,
-        target_level=10,
+        target_level=15,
         technique=Technique.CREO,
         form=Form.IGNEM,
     )
 
 
-def test_research_project_creation(test_character):
-    """Test creating a new research project."""
-    project = SpellResearchManager.create_research_project(
-        researcher=test_character,
-        research_type=ResearchType.SPELL_CREATION,
-        target_level=10,
-        technique=Technique.CREO,
-        form=Form.IGNEM,
-    )
+class TestSpellResearch:
+    def test_conduct_research(self, research_manager, test_character, test_laboratory, test_project, event_manager):
+        """Test basic research conduct with event recording."""
+        result = research_manager.conduct_research(
+            test_project, test_character, test_laboratory, year=1220, season=Season.SPRING
+        )
 
-    assert project.researcher == test_character.name
-    assert project.research_type == ResearchType.SPELL_CREATION
-    assert project.target_level == 10
-    assert project.technique == Technique.CREO
-    assert project.form == Form.IGNEM
-    assert project.seasons_invested == 0
-    assert project.research_points == 0
+        assert isinstance(result, ResearchResult)
+        assert result.points_gained > 0
 
+        event = event_manager.record_event.call_args[0][0]
+        assert event.type == EventType.RESEARCH
+        assert test_character.name in event.description
+        assert event.details["points_gained"] == result.points_gained
 
-def test_research_calculation(test_project, test_character, test_laboratory):
-    """Test calculation of research totals."""
-    total = test_project.calculate_research_total(test_character, test_laboratory)
+    def test_breakthrough_research(
+        self, research_manager, test_character, test_laboratory, test_project, event_manager
+    ):
+        """Test research with breakthrough."""
+        # Patch to ensure high research points
+        with patch("ars.laboratory.Laboratory.calculate_lab_total", return_value=50):
+            result = research_manager.conduct_research(
+                test_project, test_character, test_laboratory, year=1220, season=Season.SPRING
+            )
 
-    # Should be: Technique (10) + Form (8) + Aura (3) = 21
-    assert total == 21
+            assert result.breakthrough
+            event = event_manager.record_event.call_args[0][0]
+            assert event.details["breakthrough"] is True
 
+    def test_warping_from_research(
+        self, research_manager, test_character, test_laboratory, test_project, event_manager
+    ):
+        """Test warping points from high-aura research."""
+        # Set high aura
+        test_laboratory.magical_aura = 8
 
-def test_research_modifiers(test_project):
-    """Test adding and applying research modifiers."""
-    modifier = ResearchModifier(
-        name="Test Modifier", bonus=3, description="Test", applicable_types=[ResearchType.SPELL_CREATION]
-    )
+        result = research_manager.conduct_research(
+            test_project, test_character, test_laboratory, year=1220, season=Season.SPRING
+        )
 
-    test_project.modifiers.append(modifier)
-    assert len(test_project.modifiers) == 1
-    assert test_project.modifiers[0].bonus == 3
+        assert result.warping_points > 0
+        event = event_manager.record_event.call_args[0][0]
+        assert event.details["warping_points"] > 0
 
+    def test_laboratory_conditions(
+        self, research_manager, test_character, test_laboratory, test_project, event_manager
+    ):
+        """Test research with various laboratory conditions."""
+        # Add some lab conditions
+        test_laboratory.specializations = ["Ignem research"]
+        test_laboratory.features = ["Well-organized"]
 
-def test_conduct_research(test_project, test_character, test_laboratory):
-    """Test conducting research."""
-    result = SpellResearchManager.conduct_research(test_project, test_character, test_laboratory)
+        result = research_manager.conduct_research(
+            test_project, test_character, test_laboratory, year=1220, season=Season.SPRING
+        )
 
-    assert isinstance(result, ResearchResult)
-    assert result.points_gained > 0
-    assert isinstance(result.outcome, ResearchOutcome)
+        assert result.points_gained > 0
 
+        event = event_manager.record_event.call_args[0][0]
+        assert "laboratory_conditions" in event.details
+        assert event.details["laboratory_conditions"]["aura"] == test_laboratory.magical_aura
 
-def test_project_completion(test_project, test_character, test_laboratory):
-    """Test research project completion."""
-    # Manually add enough points to complete the project
-    target_points = SpellResearchManager.POINTS_NEEDED[ResearchType.SPELL_CREATION](10)
-    test_project.research_points = target_points
+    def test_seasonal_research_tracking(
+        self, research_manager, test_character, test_laboratory, test_project, event_manager
+    ):
+        """Test research across multiple seasons."""
+        # Conduct research in different seasons
+        seasons = [Season.SPRING, Season.SUMMER, Season.AUTUMN, Season.WINTER]
 
-    result = SpellResearchManager.conduct_research(test_project, test_character, test_laboratory)
+        for season in seasons:
+            result = research_manager.conduct_research(
+                test_project, test_character, test_laboratory, year=1220, season=season
+            )
 
-    assert result.new_spell is not None
-    assert result.new_spell.level == test_project.target_level
+            assert result.points_gained > 0
 
-
-def test_breakthrough_mechanics(test_project, test_character, test_laboratory, monkeypatch):
-    """Test breakthrough mechanics."""
-
-    # Mock the dice rolls to force a breakthrough
-    def mock_breakthrough_roll():
-        return 0
-
-    monkeypatch.setattr("ars.dice.DiceRoller.simple_die", mock_breakthrough_roll)
-
-    result = SpellResearchManager.conduct_research(test_project, test_character, test_laboratory)
-
-    assert result.breakthrough_points > 0
-    assert result.outcome == ResearchOutcome.BREAKTHROUGH
-
-
-def test_save_load_project(test_project, tmp_path):
-    """Test saving and loading research projects."""
-    # Add some data to save
-    test_project.add_note("Test note")
-    test_project.research_points = 10
-
-    # Save project
-    test_project.save(directory=tmp_path)
-
-    # Load project
-    loaded_project = ResearchProject.load(test_project.researcher, directory=tmp_path)
-
-    assert loaded_project.researcher == test_project.researcher
-    assert loaded_project.research_type == test_project.research_type
-    assert loaded_project.research_points == test_project.research_points
-    assert len(loaded_project.notes) == 1
-
-
-def test_spell_modification(test_character, test_laboratory, test_spell):
-    """Test spell modification research."""
-    project = SpellResearchManager.create_research_project(
-        researcher=test_character, research_type=ResearchType.SPELL_MODIFICATION, target_spell=test_spell
-    )
-
-    result = SpellResearchManager.conduct_research(project, test_character, test_laboratory)
-
-    assert isinstance(result, ResearchResult)
-    assert result.points_gained > 0
-
-
-def test_spell_mastery(test_character, test_laboratory, test_spell):
-    """Test spell mastery research."""
-    project = SpellResearchManager.create_research_project(
-        researcher=test_character, research_type=ResearchType.SPELL_MASTERY, target_spell=test_spell
-    )
-
-    result = SpellResearchManager.conduct_research(project, test_character, test_laboratory)
-
-    assert isinstance(result, ResearchResult)
-    assert result.points_gained > 0
-
-
-def test_experimentation(test_character, test_laboratory):
-    """Test experimental research."""
-    project = SpellResearchManager.create_research_project(
-        researcher=test_character,
-        research_type=ResearchType.SPELL_EXPERIMENTATION,
-        target_level=10,
-        technique=Technique.CREO,
-        form=Form.IGNEM,
-    )
-
-    result = SpellResearchManager.conduct_research(project, test_character, test_laboratory)
-
-    assert isinstance(result, ResearchResult)
-    assert result.outcome in [ResearchOutcome.SUCCESS, ResearchOutcome.FAILURE]
-
-
-def test_botch_handling(test_project, test_character, test_laboratory, monkeypatch):
-    """Test handling of botched research rolls."""
-
-    # Mock the dice roll to force a botch
-    def mock_botch_roll():
-        class MockRoll:
-            total = 0
-            botch = True
-
-        return MockRoll()
-
-    monkeypatch.setattr("ars.dice.DiceRoller.stress_die", mock_botch_roll)
-
-    result = SpellResearchManager.conduct_research(test_project, test_character, test_laboratory)
-
-    assert result.outcome == ResearchOutcome.CATASTROPHIC_FAILURE
-    assert result.warping_points > 0
-    assert result.points_gained == 0
-
-
-def test_research_modifiers_application(test_character):
-    """Test application of character-based research modifiers."""
-    test_character.virtues.append("Inventive Genius")
-
-    modifiers = SpellResearchManager.get_available_modifiers(test_character, ResearchType.SPELL_CREATION)
-
-    assert len(modifiers) > 0
-    assert any(mod.name == "Inventive Genius" for mod in modifiers)
+            event = event_manager.record_event.call_args[0][0]
+            assert event.season == season
+            assert event.year == 1220

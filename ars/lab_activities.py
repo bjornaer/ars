@@ -2,7 +2,7 @@ from dataclasses import dataclass
 
 from .character import Character
 from .laboratory import Laboratory
-from .types import Form, Technique
+from .core.types import Form, Technique
 
 
 @dataclass

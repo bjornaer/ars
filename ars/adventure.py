@@ -252,8 +252,8 @@ class AdventureManager:
 
         if roll == 0:
             # Check for botch
-            botch_roll = self.dice.simple_roll(6)
-            effects["botch"] = botch_roll <= 2
+            botch_roll = self.dice.botch_dice(6)
+            effects["botch"] = botch_roll[0]
         elif roll >= 9:
             # Critical success
             effects["critical"] = True

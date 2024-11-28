@@ -1,60 +1,18 @@
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, TYPE_CHECKING
 
 import yaml
 
-from .character import Character
-from .covenant import Covenant
-from .laboratory import Laboratory
-from .spell_research import ResearchProject
+from ars.events import SeasonalEventManager
+from ars.spell_research import ResearchProject
+from ars.core.types import ActivityType, Season, SeasonalActivity
 
-
-class Season(Enum):
-    """The four seasons of the year."""
-
-    SPRING = "Spring"
-    SUMMER = "Summer"
-    AUTUMN = "Autumn"
-    WINTER = "Winter"
-
-    @classmethod
-    def next_season(cls, current: "Season") -> "Season":
-        """Get the next season in sequence."""
-        seasons = list(cls)
-        current_idx = seasons.index(current)
-        return seasons[(current_idx + 1) % 4]
-
-
-class ActivityType(Enum):
-    """Types of seasonal activities."""
-
-    STUDY = "Study"
-    RESEARCH = "Research"
-    TEACH = "Teach"
-    LEARN = "Learn"
-    PRACTICE = "Practice"
-    ADVENTURE = "Adventure"
-    COVENANT_SERVICE = "Covenant Service"
-    WRITE = "Write"
-    EXTRACT_VIS = "Extract Vis"
-    ENCHANT_ITEM = "Enchant Item"
-    LONGEVITY_RITUAL = "Longevity Ritual"
-
-
-@dataclass
-class SeasonalActivity:
-    """An activity performed during a season."""
-
-    type: ActivityType
-    character: str
-    season: Season
-    year: int
-    details: Dict = field(default_factory=dict)
-    results: Dict = field(default_factory=dict)
-    completed: bool = False
-
+from ars.character import Character
+from ars.covenant import Covenant
+from ars.laboratory import Laboratory
+# if TYPE_CHECKING:
 
 @dataclass
 class GameYear:
@@ -78,9 +36,10 @@ class SeasonManager:
 
     def __init__(self, saga_name: str):
         self.saga_name = saga_name
-        self.current_year = GameYear(year=1220)  # Default start year
+        self.current_year = GameYear(year=1220)
         self.characters: Dict[str, Character] = {}
         self.covenant: Optional[Covenant] = None
+        self.event_manager = SeasonalEventManager(self)
 
     def load_saga(self) -> None:
         """Load saga data."""
@@ -170,6 +129,11 @@ class SeasonManager:
                 activity.results = result
                 activity.completed = True
 
+                # Record the activity as an event
+                self.event_manager.record_seasonal_activity(
+                    character=character_name, activity_type=activity.type, details=activity.details, results=result
+                )
+
                 if character_name not in results:
                     results[character_name] = {}
                 results[character_name][activity.type.value] = result
@@ -178,8 +142,9 @@ class SeasonManager:
         if self.covenant:
             self._execute_covenant_activities()
 
-        # Advance to next season
-        self.current_year.advance_season()
+        # Advance to next season and record the change
+        next_season = self.current_year.advance_season()
+        self.event_manager.record_season_change(next_season)
 
         return results
 

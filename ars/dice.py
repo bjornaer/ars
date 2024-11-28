@@ -1,130 +1,178 @@
 import random
 from dataclasses import dataclass
 from enum import Enum, auto
+from typing import List, Tuple
 
 
-class StressResult(Enum):
-    """Possible results of a stress die roll."""
+class DieType(Enum):
+    """Types of dice rolls in Ars Magica."""
 
-    NORMAL = auto()
+    SIMPLE = auto()
+    STRESS = auto()
     BOTCH = auto()
-    REROLL = auto()
 
 
 @dataclass
 class DiceResult:
-    """Result of a dice roll."""
+    """Represents the result of a dice roll."""
 
-    total: int
-    rolls: list[int]
-    botch: bool = False
+    value: int
+    is_botch: bool = False
     multiplier: int = 1
+    botch_dice: int = 0
+    raw_rolls: List[int] = None  # Store all raw rolls
+
+    def __post_init__(self):
+        if self.raw_rolls is None:
+            self.raw_rolls = []
 
     @property
-    def is_botch(self) -> bool:
-        return self.botch
-
-    def __str__(self) -> str:
-        if self.botch:
-            return f"Botch! (rolls: {self.rolls})"
-        return f"Total: {self.total} (rolls: {self.rolls}, x{self.multiplier})"
+    def total(self) -> int:
+        """Calculate total value including multiplier."""
+        return self.value * self.multiplier if not self.is_botch else 0
 
 
 class DiceRoller:
-    """Handles dice rolling mechanics."""
+    """Handles all dice rolling mechanics for the game."""
+
+    @staticmethod
+    def roll_multiple(num_dice: int = 1, die_type: DieType = DieType.SIMPLE) -> List[DiceResult]:
+        """
+        Roll multiple dice of the specified type.
+
+        Args:
+            num_dice: Number of dice to roll
+            die_type: Type of die to roll (simple, stress, or botch)
+        """
+        results = []
+        for _ in range(num_dice):
+            if die_type == DieType.STRESS:
+                results.append(DiceRoller.stress_die())
+            elif die_type == DieType.BOTCH:
+                is_botch, zeros = DiceRoller.botch_check(1)
+                results.append(DiceResult(value=0, is_botch=is_botch, botch_dice=zeros))
+            else:
+                results.append(DiceRoller.simple_die())
+        return results
 
     @staticmethod
     def simple_die() -> DiceResult:
         """Roll a simple die (0-9)."""
         roll = random.randint(0, 9)
-        return DiceResult(total=roll, rolls=[roll])
+        return DiceResult(value=roll, raw_rolls=[roll])
 
     @staticmethod
     def stress_die() -> DiceResult:
-        """Roll a stress die (0-9, with botch and reroll possibilities)."""
+        """
+        Roll a stress die (0-9 with possible multiplier).
+        1 triggers a botch check, 0 means multiply by 2 and roll again.
+        """
         rolls = []
         multiplier = 1
-        initial_roll = random.randint(0, 9)
-        rolls.append(initial_roll)
+        value = 0
+        is_botch = False
+        botch_dice = 0
 
-        if initial_roll == 0:
-            rolls.extend([random.randint(0, 9) for _ in range(2)])
-            if all(r == 0 for r in rolls):
-                return DiceResult(total=0, rolls=rolls, botch=True)
-            return DiceResult(total=0, rolls=rolls)
+        # First roll
+        roll = random.randint(0, 9)
+        rolls.append(roll)
 
-        elif initial_roll == 1:
-            while initial_roll == 1:
+        if roll == 1:
+            # Botch check
+            botch_roll = random.randint(0, 9)
+            rolls.append(botch_roll)
+            is_botch = botch_roll == 0
+            botch_dice = 1
+            value = 0
+        else:
+            # Handle explosions with a loop
+            current_roll = roll
+            while current_roll == 0:
                 multiplier *= 2
-                initial_roll = random.randint(0, 9)
-                rolls.append(initial_roll)
+                current_roll = random.randint(0, 9)
+                rolls.append(current_roll)
 
-        return DiceResult(total=initial_roll * multiplier, rolls=rolls, multiplier=multiplier)
+            # If the last roll wasn't 0, it's our value
+            value = current_roll if roll == 0 else roll
 
-    @staticmethod
-    def botch_dice(number: int) -> tuple[bool, list[int]]:
-        """Roll botch dice.
-
-        Args:
-            number: Number of botch dice to roll.
-
-        Returns:
-            Tuple of (botched: bool, rolls: list[int])
-        """
-        rolls = [random.randint(0, 9) for _ in range(number)]
-        botched = rolls.count(0) > 0
-        return botched, rolls
-
-
-class ArtRoller:
-    """Handles Art-specific rolls."""
+        return DiceResult(value=value, is_botch=is_botch, multiplier=multiplier, botch_dice=botch_dice, raw_rolls=rolls)
 
     @staticmethod
-    def cast_spell(technique: int, form: int, aura: int = 0, stress: bool = True, modifiers: int = 0) -> DiceResult:
-        """Roll for spell casting.
+    def botch_check(botch_dice: int) -> Tuple[bool, int]:
+        """
+        Perform a botch check with specified number of botch dice.
+        Returns (is_botch, zeros_rolled).
+        """
+        rolls = [random.randint(0, 9) for _ in range(botch_dice)]
+        zeros = sum(1 for roll in rolls if roll == 0)
+        return zeros > 0, zeros
+
+    @classmethod
+    def ability_check(
+        cls, ability_score: int, stress: bool = False, modifier: int = 0, botch_dice: int = 0
+    ) -> DiceResult:
+        """
+        Perform an ability check.
 
         Args:
-            technique: Technique score
-            form: Form score
-            aura: Magical aura modifier
-            stress: Whether to use stress die
-            modifiers: Additional modifiers
-
-        Returns:
-            DiceResult with casting total
+            ability_score: Base ability score
+            stress: Whether to use a stress die
+            modifier: Additional modifier to the roll
+            botch_dice: Number of additional botch dice
         """
-        base = technique + form + aura + modifiers
         if stress:
-            roll = DiceRoller.stress_die()
+            roll = cls.stress_die()
+            if roll.is_botch:
+                is_botch, zeros = cls.botch_check(botch_dice + 1)
+                roll.is_botch = is_botch
+                roll.botch_dice = zeros
+            else:
+                roll.value = roll.total + ability_score + modifier
         else:
-            simple_roll = DiceRoller.simple_die()
-            roll = DiceResult(total=simple_roll, rolls=[simple_roll])
+            roll = cls.simple_die()
+            roll.value = roll.value + ability_score + modifier
 
-        roll.total += base
         return roll
 
-
-class CombatRoller:
-    """Handles combat-related rolls."""
-
-    @staticmethod
-    def attack_roll(weapon_skill: int, modifiers: int = 0, stress: bool = False) -> DiceResult:
-        """Roll for attack.
+    @classmethod
+    def spell_check(
+        cls,
+        casting_total: int,
+        stress: bool = True,
+        aura_modifier: int = 0,
+        fatigue_level: int = 0,
+        botch_dice: int = 0,
+    ) -> DiceResult:
+        """
+        Perform a spell casting check.
 
         Args:
-            weapon_skill: Weapon ability score
-            modifiers: Situational modifiers
+            casting_total: Base casting score
             stress: Whether to use stress die
-
-        Returns:
-            DiceResult with attack total
+            aura_modifier: Magical aura modifier
+            fatigue_level: Current fatigue level (negative modifier)
+            botch_dice: Additional botch dice
         """
-        base = weapon_skill + modifiers
-        if stress:
-            roll = DiceRoller.stress_die()
-        else:
-            simple_roll = DiceRoller.simple_die()
-            roll = DiceResult(total=simple_roll, rolls=[simple_roll])
+        modifier = aura_modifier - fatigue_level
+        result = cls.ability_check(ability_score=casting_total, stress=stress, modifier=modifier, botch_dice=botch_dice)
 
-        roll.total += base
-        return roll
+        return result
+
+    @classmethod
+    def certamen_check(
+        cls, technique_score: int, form_score: int, stress: bool = True, aura_modifier: int = 0, fatigue_level: int = 0
+    ) -> DiceResult:
+        """
+        Perform a Certamen check.
+
+        Args:
+            technique_score: Technique score
+            form_score: Form score
+            stress: Whether to use stress die
+            aura_modifier: Magical aura modifier
+            fatigue_level: Current fatigue level
+        """
+        casting_total = technique_score + form_score
+        return cls.spell_check(
+            casting_total=casting_total, stress=stress, aura_modifier=aura_modifier, fatigue_level=fatigue_level
+        )

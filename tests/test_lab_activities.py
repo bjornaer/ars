@@ -3,7 +3,7 @@ import pytest
 from ars.character import Character
 from ars.lab_activities import ItemEnchantment, LongevityRitual, VisExtraction
 from ars.laboratory import Laboratory
-from ars.types import Form, House, Technique
+from ars.core.types import Form, House, Technique
 
 
 @pytest.fixture

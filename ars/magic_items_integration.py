@@ -4,8 +4,8 @@ from typing import Dict, Optional
 from ars.character import Character
 from ars.covenant import Covenant
 from ars.laboratory import Laboratory
-from ars.magic_items import ItemCreationManager, ItemEffect, ItemType, MagicItem
-from ars.seasons import Season
+from ars.magic_items import ItemCreationManager, ItemEffect, MagicItem
+from ars.core.types import Season
 from ars.vis_aura import AuraManager, VisManager
 
 
@@ -203,44 +203,3 @@ class IntegratedItemCreationManager:
             pass
 
         return manager
-
-
-# Update Laboratory class
-class Laboratory:
-    def calculate_enchantment_bonus(self) -> int:
-        """Calculate laboratory's enchantment bonus."""
-        bonus = 0
-
-        # Base enchantment bonus
-        if hasattr(self, "specializations"):
-            bonus += self.specializations.get("enchantment", 0)
-
-        # Equipment bonus
-        if hasattr(self, "equipment"):
-            bonus += sum(item.bonus for item in self.equipment if "enchantment" in item.specialties)
-
-        # Size bonus
-        if hasattr(self, "size"):
-            bonus += max(0, self.size - 2)
-
-        return bonus
-
-
-# Update Character class
-class Character:
-    def can_enchant(self, item_type: ItemType) -> bool:
-        """Check if character can create given type of magic item."""
-        if not hasattr(self, "abilities"):
-            return False
-
-        magic_theory = self.abilities.get("Magic Theory", 0)
-
-        requirements = {
-            ItemType.CHARGED: 3,
-            ItemType.INVESTED: 5,
-            ItemType.LESSER: 8,
-            ItemType.GREATER: 12,
-            ItemType.TALISMAN: 15,
-        }
-
-        return magic_theory >= requirements[item_type]

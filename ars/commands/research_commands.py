@@ -3,12 +3,12 @@ from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
 
-from ..character import Character
-from ..laboratory import Laboratory
-from ..spell_research import ResearchProject, ResearchType
-from ..spell_research_manager import SpellResearchManager
-from ..spells import Spell
-from ..types import Form, Technique
+from ars.character import Character
+from ars.laboratory import Laboratory
+from ars.spell_research import ResearchProject, ResearchType
+from ars.spell_research_manager import SpellResearchManager
+from ars.spells import Spell
+from ars.core.types import Form, Technique
 
 console = Console()
 

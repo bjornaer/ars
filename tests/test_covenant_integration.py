@@ -3,7 +3,7 @@ import pytest
 from ars.character import Character
 from ars.covenant import Building, BuildingType, Covenant, CovenantSize
 from ars.laboratory import Laboratory
-from ars.types import House
+from ars.core.types import House
 
 
 @pytest.fixture

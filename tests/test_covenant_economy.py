@@ -9,7 +9,7 @@ from ars.covenant_economy import (
     Personnel,
     ResourceCategory,
 )
-from ars.types import Form
+from ars.core.types import Form
 
 
 @pytest.fixture
