@@ -1,126 +1,233 @@
 import pytest
+from pathlib import Path
+import yaml
 
-from ars.character import Character, CharacterNotFoundError
-from ars.events import EventType
+from ars.core.character import Character, CharacterError, InvalidCharacterDataError
 from ars.core.types import (
-    AbilityType, Characteristic, Duration, House, Range, Season,
-    Form, Target, Technique
+    AbilityType, ArmorType, Characteristic, FatigueLevel, WeaponType
 )
 
 
-class TestCharacter:
-    def test_character_creation(self, base_character):
-        """Test basic character creation and initialization."""
-        assert base_character.name == "Testus of Bonisagus"
-        assert base_character.house == House.BONISAGUS
-        assert base_character.age == 25  # Default starting age
-        assert base_character.apparent_age == 25
+@pytest.fixture
+def basic_character():
+    """Create a basic character for testing."""
+    return Character(
+        name="Test Character",
+        player="Test Player",
+        saga="Test Saga",
+        covenant="Test Covenant"
+    )
+
+
+@pytest.fixture
+def temp_character_dir(tmp_path):
+    """Create a temporary directory for character files."""
+    char_dir = tmp_path / "characters"
+    char_dir.mkdir()
+    return char_dir
+
+
+class TestCharacterBasics:
+    """Test basic character functionality."""
+
+    def test_character_creation(self, basic_character):
+        """Test basic character creation."""
+        assert basic_character.name == "Test Character"
+        assert basic_character.player == "Test Player"
+        assert basic_character.age == 25  # default value
+        assert basic_character.fatigue_level == FatigueLevel.FRESH
+
+    def test_default_characteristics(self, basic_character):
+        """Test that characteristics are properly initialized."""
+        for char in Characteristic:
+            assert basic_character.characteristics[char] == 0
+
+    def test_characteristic_bonus(self, basic_character):
+        """Test characteristic bonus calculation."""
+        basic_character.characteristics[Characteristic.STRENGTH] = 3
+        assert basic_character.get_characteristic_bonus(Characteristic.STRENGTH) == 3
+
+
+class TestAbilities:
+    """Test ability management."""
+
+    def test_add_valid_ability(self, basic_character):
+        """Test adding a valid ability."""
+        basic_character.add_ability(AbilityType.MARTIAL, "Athletics", 2)
+        assert basic_character.get_ability_score(AbilityType.MARTIAL, "Athletics") == 2
+
+    def test_add_invalid_ability(self, basic_character):
+        """Test adding an invalid ability."""
+        with pytest.raises(InvalidCharacterDataError):
+            basic_character.add_ability(AbilityType.MARTIAL, "InvalidAbility", 2)
+
+    def test_get_nonexistent_ability(self, basic_character):
+        """Test getting score of nonexistent ability."""
+        assert basic_character.get_ability_score(AbilityType.ACADEMIC, "Philosophy") == 0
+
+
+class TestPersonalityAndReputation:
+    """Test personality traits and reputation."""
+
+    def test_add_valid_personality_trait(self, basic_character):
+        """Test adding a valid personality trait."""
+        basic_character.add_personality_trait("Brave", 2)
+        assert basic_character.personality_traits["Brave"] == 2
+
+    def test_add_invalid_personality_trait(self, basic_character):
+        """Test adding an invalid personality trait value."""
+        with pytest.raises(InvalidCharacterDataError):
+            basic_character.add_personality_trait("Brave", 4)
+
+    def test_add_valid_reputation(self, basic_character):
+        """Test adding a valid reputation."""
+        basic_character.add_reputation("Wise Magus", 3)
+        assert basic_character.reputation["Wise Magus"] == 3
+
+    def test_add_invalid_reputation(self, basic_character):
+        """Test adding an invalid reputation value."""
+        with pytest.raises(InvalidCharacterDataError):
+            basic_character.add_reputation("Wise Magus", 6)
+
+
+class TestEquipment:
+    """Test equipment management."""
+
+    def test_equip_weapon(self, basic_character):
+        """Test equipping a weapon."""
+        basic_character.equip_weapon(WeaponType.SWORD, attack_mod=3, damage_mod=0)
+        assert basic_character.weapons[WeaponType.SWORD] == {
+            'type': WeaponType.SWORD,
+            'attack_mod': 3,
+            'damage_mod': 0
+        }
+
+    def test_equip_invalid_weapon_skill(self, basic_character):
+        """Test equipping a weapon with invalid skill."""
+        with pytest.raises(InvalidCharacterDataError):
+            basic_character.equip_weapon(WeaponType.SWORD, attack_mod=6, damage_mod=0)
+
+    def test_equip_armor(self, basic_character):
+        """Test equipping armor."""
+        basic_character.equip_armor(ArmorType.CHAIN)
+        assert basic_character.armor == ArmorType.CHAIN
+
+
+class TestCombatCalculations:
+    """Test combat-related calculations."""
+
+    def test_combat_bonus(self, basic_character):
+        """Test combat bonus calculation."""
+        basic_character.characteristics[Characteristic.DEXTERITY] = 2
+        basic_character.characteristics[Characteristic.STRENGTH] = 1
+        basic_character.equip_weapon(WeaponType.SWORD, attack_mod=3, damage_mod=0)
         
-        # Test initial arts
-        assert base_character.techniques[Technique.CREO] == 10
-        assert base_character.techniques[Technique.REGO] == 8
-        assert base_character.forms[Form.IGNEM] == 8
-        assert base_character.forms[Form.VIM] == 6
+        # Expected: weapon(3) + dex(2) + str(1) + fatigue(0) = 6
+        assert basic_character.get_combat_bonus(WeaponType.SWORD) == 6
+
+    def test_soak_bonus(self, basic_character):
+        """Test soak bonus calculation."""
+        basic_character.characteristics[Characteristic.STAMINA] = 2
+        basic_character.equip_armor(ArmorType.CHAIN)
         
-        # Test initial characteristics
-        assert base_character.characteristics[Characteristic.INTELLIGENCE] == 3
-        assert base_character.characteristics[Characteristic.STAMINA] == 2
+        # Expected: stamina(2) + chain_armor_protection
+        armor_protection = ArmorType.get_stats(ArmorType.CHAIN)["protection"]
+        assert basic_character.get_soak_bonus() == 2 + armor_protection
+
+
+class TestFatigue:
+    """Test fatigue management."""
+
+    def test_fatigue_modification(self, basic_character):
+        """Test modifying fatigue levels."""
+        basic_character.modify_fatigue(2)
+        assert basic_character.fatigue_level == FatigueLevel.WEARY
+
+    def test_fatigue_limits(self, basic_character):
+        """Test fatigue level limits."""
+        # Test upper limit
+        basic_character.modify_fatigue(10)
+        assert basic_character.fatigue_level == FatigueLevel.UNCONSCIOUS
         
-        # Test initial abilities
-        assert base_character.abilities[AbilityType.ARCANE]["Magic Theory"] == 4
-        assert base_character.abilities[AbilityType.ARCANE]["Parma Magica"] == 1
+        # Test lower limit
+        basic_character.modify_fatigue(-10)
+        assert basic_character.fatigue_level == FatigueLevel.FRESH
 
-    def test_add_experience(self, base_character, event_manager):
-        """Test adding experience with event recording."""
-        base_character.add_experience(
-            ability="Magic Theory",
-            points=5,
-            year=1220,
-            season=Season.SPRING
-        )
 
-        # Verify experience was added
-        assert base_character.abilities[AbilityType.ARCANE]["Magic Theory"] == 9
+class TestSerialization:
+    """Test character serialization."""
 
-        # Verify event was recorded
-        event_manager.record_event.assert_called_once()
-        event = event_manager.record_event.call_args[0][0]
-        assert event.type == EventType.EXPERIENCE_GAIN
-        assert event.details["ability"] == "Magic Theory"
-        assert event.details["points_gained"] == 5
-        assert event.details["new_value"] == 9
-        assert event.year == 1220
-        assert event.season == Season.SPRING
-
-    def test_save_load(self, base_character, tmp_saga_path):
-        """Test character serialization and deserialization."""
-        # Add some additional data
-        base_character.add_personality_trait("Brave", 3)
-        base_character.techniques[Technique.PERDO] = 5
-        base_character.forms[Form.CORPUS] = 4
-
-        # Save character
-        base_character.save(directory=tmp_saga_path)
-
-        # Load character
-        loaded_char = Character.load(base_character.name, directory=tmp_saga_path)
-
-        # Verify basic attributes
-        assert loaded_char.name == base_character.name
-        assert loaded_char.house == base_character.house
-        assert loaded_char.age == base_character.age
-
-        # Verify arts
-        assert loaded_char.techniques[Technique.CREO] == base_character.techniques[Technique.CREO]
-        assert loaded_char.techniques[Technique.PERDO] == 5
-        assert loaded_char.forms[Form.IGNEM] == base_character.forms[Form.IGNEM]
-        assert loaded_char.forms[Form.CORPUS] == 4
-
-        # Verify characteristics and abilities
-        assert loaded_char.characteristics[Characteristic.INTELLIGENCE] == 3
-        assert loaded_char.abilities[AbilityType.ARCANE]["Magic Theory"] == 4
-
-        # Verify personality traits
-        assert loaded_char.personality_traits["Brave"] == 3
-
-    def test_character_not_found(self, tmp_saga_path):
-        """Test loading non-existent character."""
-        with pytest.raises(CharacterNotFoundError):
-            Character.load("NonExistent", tmp_saga_path)
-
-    def test_list_characters(self, base_character, tmp_saga_path):
-        """Test listing saved characters."""
-        # Save test character
-        base_character.save(directory=tmp_saga_path)
-
-        # List characters
-        characters = Character.list_characters(tmp_saga_path)
-        assert "testus_of_bonisagus" in characters
-
-    def test_add_spell(self, base_character, event_manager):
-        """Test adding spells to character."""
-        from ars.spells import Spell, SpellParameters
+    def test_to_dict(self, basic_character):
+        """Test converting character to dictionary."""
+        basic_character.add_ability(AbilityType.MARTIAL, "Athletics", 2)
+        basic_character.equip_weapon(WeaponType.SWORD, attack_mod=3, damage_mod=0)
         
-        spell = Spell(
-            name="Test Flame",
-            technique=Technique.CREO,
-            form=Form.IGNEM,
-            level=10,
-            parameters=SpellParameters(
-                range=Range.VOICE,
-                duration=Duration.DIAMETER,
-                target=Target.INDIVIDUAL
-            )
-        )
+        data = basic_character.to_dict()
+        assert data["name"] == "Test Character"
+        assert data["abilities"][AbilityType.MARTIAL.value]["Athletics"] == 2
+        assert data["weapons"][WeaponType.SWORD.value] == {
+            'type': WeaponType.SWORD,
+            'attack_mod': 3,
+            'damage_mod': 0
+        }
+
+    def test_from_dict(self):
+        """Test creating character from dictionary."""
+        data = {
+            "name": "Test Character",
+            "player": "Test Player",
+            "saga": "Test Saga",
+            "covenant": "Test Covenant",
+            "characteristics": {
+                "Strength": 2,
+                "Dexterity": 1
+            }
+        }
         
-        base_character.add_spell(spell)
+        character = Character.from_dict(data)
+        assert character.name == "Test Character"
+        assert character.characteristics[Characteristic.STRENGTH] == 2
+
+
+class TestFileOperations:
+    """Test character file operations."""
+
+    def test_save_and_load(self, basic_character, temp_character_dir):
+        """Test saving and loading character."""
+        # Add some data
+        basic_character.add_ability(AbilityType.MARTIAL, "Athletics", 2)
+        basic_character.equip_weapon(WeaponType.SWORD, attack_mod=3, damage_mod=0)
         
-        # Verify spell was added
-        assert spell.name in base_character.spells
+        # Save
+        basic_character.save(temp_character_dir)
         
-        # Verify event recording
-        event_manager.record_event.assert_called_once()
-        event = event_manager.record_event.call_args[0][0]
-        assert event.type == EventType.SPELLCASTING
-        assert event.details["action"] == "learn_spell"
-        assert event.details["spell_name"] == spell.name
+        # Load
+        loaded = Character.load(basic_character.name, temp_character_dir)
+        
+        # Verify
+        assert loaded.name == basic_character.name
+        assert loaded.get_ability_score(AbilityType.MARTIAL, "Athletics") == 2
+        assert loaded.weapons[WeaponType.SWORD] == {
+            'type': WeaponType.SWORD,
+            'attack_mod': 3,
+            'damage_mod': 0
+        }
+
+    def test_load_nonexistent_character(self, temp_character_dir):
+        """Test loading a nonexistent character."""
+        with pytest.raises(CharacterError):
+            Character.load("NonexistentCharacter", temp_character_dir)
+
+    def test_save_overwrites_existing(self, basic_character, temp_character_dir):
+        """Test that saving overwrites existing character file."""
+        # Initial save
+        basic_character.add_ability(AbilityType.MARTIAL, "Athletics", 2)
+        basic_character.save(temp_character_dir)
+        
+        # Modify and save again
+        basic_character.add_ability(AbilityType.MARTIAL, "Athletics", 3)
+        basic_character.save(temp_character_dir)
+        
+        # Load and verify
+        loaded = Character.load(basic_character.name, temp_character_dir)
+        assert loaded.get_ability_score(AbilityType.MARTIAL, "Athletics") == 3

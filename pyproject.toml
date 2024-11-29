@@ -34,7 +34,7 @@ pytest = "*"
 pytest-cov = "*"
 
 [tool.poetry.scripts]
-ars = "ars.cli:main"
+ars = "ars.cli.cli:main"
 
 [build-system]
 requires = ["poetry-core"]
