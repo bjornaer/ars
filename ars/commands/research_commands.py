@@ -5,8 +5,7 @@ from rich.table import Table
 
 from ars.character import Character
 from ars.laboratory import Laboratory
-from ars.spell_research import ResearchProject, ResearchType
-from ars.spell_research_manager import SpellResearchManager
+from ars.spell_research import ResearchProject, ResearchType, SpellResearchManager
 from ars.spells import Spell
 from ars.core.types import Form, Technique
 
