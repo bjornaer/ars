@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 from enum import Enum, auto
 from typing import Dict, List, Optional
 import yaml
@@ -109,6 +110,12 @@ class Target(Enum):
         }
         return modifiers.get(target, 0)
 
+@dataclass
+class WeaponStats:
+    init: int = 0
+    attack: int = 0
+    defense: int = 0
+    damage: int = 0
 
 class WeaponType(Enum):
     DAGGER = "Dagger"
@@ -119,17 +126,23 @@ class WeaponType(Enum):
     BRAWLING = "Brawling"
 
     @classmethod
-    def get_stats(cls, weapon: "WeaponType") -> Dict[str, int]:
+    def get_stats(cls, weapon: "WeaponType") -> WeaponStats:
+        # stats must be between 0 and 5
         stats = {
-            cls.DAGGER: {"init": 3, "attack": 3, "defense": 1, "damage": 3},
-            cls.SWORD: {"init": 5, "attack": 6, "defense": 6, "damage": 7},
-            cls.BOW: {"init": 0, "attack": 6, "defense": 0, "damage": 8},
-            cls.SPEAR: {"init": 3, "attack": 6, "defense": 3, "damage": 6},
-            cls.MACE: {"init": 3, "attack": 5, "defense": 4, "damage": 8},
-            cls.BRAWLING: {"init": 0, "attack": 0, "defense": 0, "damage": 0}
+            cls.DAGGER: WeaponStats(init=4, attack=2, defense=1, damage=3),
+            cls.SWORD: WeaponStats(init=3, attack=3, defense=3, damage=4),
+            cls.BOW: WeaponStats(init=0, attack=2, defense=0, damage=3),
+            cls.SPEAR: WeaponStats(init=2, attack=4, defense=3, damage=4),
+            cls.MACE: WeaponStats(init=1, attack=3, defense=4, damage=5),
+            cls.BRAWLING: WeaponStats(init=0, attack=0, defense=0, damage=0)
         }
-        return stats.get(weapon, {"init": 0, "attack": 0, "defense": 0, "damage": 0})
+        return stats.get(weapon, WeaponStats(init=0, attack=0, defense=0, damage=0))
 
+
+@dataclass
+class ArmorStats:
+    protection: int
+    load: int
 
 class ArmorType(Enum):
     NONE = "None"
@@ -138,14 +151,14 @@ class ArmorType(Enum):
     PLATE = "Plate"
 
     @classmethod
-    def get_stats(cls, armor: "ArmorType") -> Dict[str, int]:
+    def get_stats(cls, armor: "ArmorType") -> ArmorStats:
         stats = {
-            cls.NONE: {"protection": 0, "load": 0},
-            cls.LEATHER: {"protection": 2, "load": 1},
-            cls.CHAIN: {"protection": 4, "load": 3},
-            cls.PLATE: {"protection": 6, "load": 5}
+            cls.NONE: ArmorStats(protection=0, load=0),
+            cls.LEATHER: ArmorStats(protection=2, load=1),
+            cls.CHAIN: ArmorStats(protection=4, load=3),
+            cls.PLATE: ArmorStats(protection=6, load=5)
         }
-        return stats.get(armor, {"protection": 0, "load": 0})
+        return stats.get(armor, ArmorStats(protection=0, load=0))
 
 
 class House(Enum):

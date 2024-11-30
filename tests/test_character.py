@@ -95,17 +95,18 @@ class TestEquipment:
 
     def test_equip_weapon(self, basic_character):
         """Test equipping a weapon."""
-        basic_character.equip_weapon(WeaponType.SWORD, attack_mod=3, damage_mod=0)
+        basic_character.equip_weapon(WeaponType.SWORD, attack_mod=3)
         assert basic_character.weapons[WeaponType.SWORD] == {
             'type': WeaponType.SWORD,
             'attack_mod': 3,
-            'damage_mod': 0
+            'damage_mod': 0,
+            'init_mod': 0
         }
 
     def test_equip_invalid_weapon_skill(self, basic_character):
         """Test equipping a weapon with invalid skill."""
         with pytest.raises(InvalidCharacterDataError):
-            basic_character.equip_weapon(WeaponType.SWORD, attack_mod=6, damage_mod=0)
+            basic_character.equip_weapon(WeaponType.SWORD, attack_mod=6)
 
     def test_equip_armor(self, basic_character):
         """Test equipping armor."""
@@ -160,7 +161,7 @@ class TestSerialization:
     def test_to_dict(self, basic_character):
         """Test converting character to dictionary."""
         basic_character.add_ability(AbilityType.MARTIAL, "Athletics", 2)
-        basic_character.equip_weapon(WeaponType.SWORD, attack_mod=3, damage_mod=0)
+        basic_character.equip_weapon(WeaponType.SWORD, attack_mod=3)
         
         data = basic_character.to_dict()
         assert data["name"] == "Test Character"
@@ -168,7 +169,8 @@ class TestSerialization:
         assert data["weapons"][WeaponType.SWORD.value] == {
             'type': WeaponType.SWORD,
             'attack_mod': 3,
-            'damage_mod': 0
+            'damage_mod': 0,
+            'init_mod': 0
         }
 
     def test_from_dict(self):
@@ -196,7 +198,7 @@ class TestFileOperations:
         """Test saving and loading character."""
         # Add some data
         basic_character.add_ability(AbilityType.MARTIAL, "Athletics", 2)
-        basic_character.equip_weapon(WeaponType.SWORD, attack_mod=3, damage_mod=0)
+        basic_character.equip_weapon(WeaponType.SWORD, attack_mod=3)
         
         # Save
         basic_character.save(temp_character_dir)
@@ -210,7 +212,8 @@ class TestFileOperations:
         assert loaded.weapons[WeaponType.SWORD] == {
             'type': WeaponType.SWORD,
             'attack_mod': 3,
-            'damage_mod': 0
+            'damage_mod': 0,
+            'init_mod': 0
         }
 
     def test_load_nonexistent_character(self, temp_character_dir):

@@ -4,7 +4,7 @@ from typing import Dict, List, Optional
 import yaml
 
 from ars.core.types import (
-    AbilityType, ArmorType, Characteristic, FatigueLevel,
+    AbilityType, ArmorType, Characteristic, FatigueLevel, WeaponStats,
     WeaponType
 )
 
@@ -42,7 +42,7 @@ class Character:
     )
     
     # Equipment
-    weapons: Dict[WeaponType, dict] = field(default_factory=dict)
+    weapons: Dict[WeaponType, WeaponStats] = field(default_factory=dict)
     equipped_weapon: Optional[WeaponType] = None
     armor: Optional[ArmorType] = None
     
@@ -88,17 +88,17 @@ class Character:
         """Get the bonus for a characteristic."""
         return self.characteristics.get(characteristic, 0)
 
-    def equip_weapon(self, weapon: WeaponType, attack_mod: int = 0, damage_mod: int = 0, init_mod: int = 0) -> None:
+    def equip_weapon(self, weapon: WeaponType, attack_mod: int = 0, damage_mod: int = 0, init_mod: int = 0, defense_mod: int = 0) -> None:
         """Equip a weapon with associated skill."""
         if not 0 <= attack_mod <= 5:
             raise InvalidCharacterDataError("Weapon skill must be between 0 and 5")
         
-        self.weapons[weapon] = {
-            'type': weapon,
-            'attack_mod': attack_mod,
-            'damage_mod': damage_mod,
-            'init_mod': init_mod
-        }
+        self.weapons[weapon] = WeaponStats(
+            attack=attack_mod,
+            damage=damage_mod,
+            init=init_mod,
+            defense=defense_mod
+        )
         self.equipped_weapon = weapon
 
     def equip_armor(self, armor: ArmorType) -> None:
@@ -112,9 +112,15 @@ class Character:
         dex_bonus = self.characteristics.get(Characteristic.DEXTERITY, 0)
         str_bonus = self.characteristics.get(Characteristic.STRENGTH, 0)
         fatigue_penalty = FatigueLevel.get_penalty(self.fatigue_level)
-        weapon_bonus = weapon_stats.get('attack_mod', 0)
+        weapon_bonus = weapon_stats.attack
         
         return dex_bonus + str_bonus + fatigue_penalty + weapon_bonus
+
+    def get_damage_bonus(self, weapon: WeaponType) -> int:
+        """Calculate total damage bonus for a weapon."""
+        weapon_stats = self.weapons.get(weapon)
+        str_bonus = self.characteristics.get(Characteristic.STRENGTH, 0)
+        return weapon_stats.damage + str_bonus
 
     def get_defense_bonus(self, weapon: WeaponType) -> int:
         """Calculate total defense bonus for armor and attributes."""
@@ -123,16 +129,22 @@ class Character:
         dex_bonus = self.characteristics.get(Characteristic.DEXTERITY, 0)
         str_bonus = self.characteristics.get(Characteristic.STRENGTH, 0)
         fatigue_penalty = FatigueLevel.get_penalty(self.fatigue_level)
-        weapon_bonus = weapon_stats.get('defense_mod', 0)
+        weapon_bonus = weapon_stats.defense
 
         return dex_bonus + str_bonus + fatigue_penalty + weapon_bonus
 
     def get_soak_bonus(self) -> int:
         """Calculate character's soak bonus."""
         stamina = self.characteristics.get(Characteristic.STAMINA, 0)
-        armor_bonus = 0 if self.armor is None else ArmorType.get_stats(self.armor)["protection"]
+        armour_bonus = ArmorType.get_stats(self.armor).protection
         
-        return stamina + armor_bonus
+        return stamina + armour_bonus
+    
+    def get_initiative_bonus(self, weapon: WeaponType) -> int:
+        """Calculate character's initiative bonus."""
+        quickness = self.characteristics.get(Characteristic.QUICKNESS, 0)
+        weapon_bonus = self.weapons.get(weapon).init
+        return quickness + weapon_bonus
 
     def to_dict(self) -> dict:
         """Convert character to dictionary for saving."""

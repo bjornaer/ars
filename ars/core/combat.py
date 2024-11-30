@@ -192,28 +192,28 @@ class CombatManager:
             
         # Attack roll
         attack_roll = DiceRoller.stress_die() if stress else DiceRoller.simple_die()
-        weapon = attacker.weapons.get(attacker.equipped_weapon or WeaponType.BRAWLING)
+        weapon = attacker.equipped_weapon or WeaponType.BRAWLING
         
         # Calculate attack total
         attack_total = (
             attack_roll.total +
-            attacker.get_combat_bonus(weapon['type']) +
+            attacker.get_combat_bonus(weapon) +
             sum(modifiers.values())
         )
         
         # Defense roll
         defense_roll = DiceRoller.stress_die() if stress else DiceRoller.simple_die()
-        def_weapon = defender.weapons.get(defender.equipped_weapon or WeaponType.BRAWLING)
+        def_weapon = defender.equipped_weapon or WeaponType.BRAWLING
         # Calculate defense total
         defense_total = (
             defense_roll.total +
-            defender.get_defense_bonus(def_weapon['type'])
+            defender.get_defense_bonus(def_weapon)
         )
         
         # Add armor defense if present
         if hasattr(defender, 'armor') and defender.armor:
             armor = next(iter(defender.armor.values()))  # Get first armor
-            defense_total += armor.get('modifiers', 0)
+            defense_total += armor.modifiers
         
         # Determine hit
         is_hit = attack_total > defense_total
@@ -225,8 +225,7 @@ class CombatManager:
             damage_roll = DiceRoller.stress_die()
             base_damage = (
                 damage_roll.total +
-                attacker.characteristics.get('Strength', 0) +
-                weapon.get('damage_mod', 0)
+                attacker.get_damage_bonus(weapon)
             )
             
             # Calculate soak
@@ -299,19 +298,18 @@ class CombatManager:
 
     @staticmethod
     def calculate_initiative(
-        quickness: int,
-        weapon: dict,
-        modifiers: Dict[str, int] = None
+        character: 'Character',
+        modifiers: Dict[str, int] | None = None
     ) -> DiceResult:
         """Calculate initiative for a combatant."""
         if modifiers is None:
             modifiers = {}
             
         roll = DiceRoller.simple_die()
+        quickness = character.get_initiative_bonus(character.equipped_weapon or WeaponType.BRAWLING)
         total = (
             roll.total +
             quickness +
-            weapon.get('init_mod', 0) +
             sum(modifiers.values())
         )
         
