@@ -174,7 +174,8 @@ class SpellCaster:
             botch=botched,
             fatigue_cost=fatigue_cost,
             warping_gained=warping,
-            aura_modifier=aura
+            aura_modifier=aura,
+            botch_dice=botch_dice
         )
 
     @staticmethod
